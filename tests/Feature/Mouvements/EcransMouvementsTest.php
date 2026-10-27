@@ -19,6 +19,7 @@ use App\Models\User;
 use App\Policies\MovementPolicy;
 use App\Support\DefaultRoles;
 use Filament\Facades\Filament;
+use Illuminate\Support\Facades\Route;
 
 use function Pest\Livewire\livewire;
 
@@ -63,6 +64,8 @@ it('transfère un bien depuis la fiche (E14)', function () {
 });
 
 it('propose la réimpression de l\'étiquette quand le département change (RG-24)', function () {
+    Route::get('admin/etiquettes', fn () => 'ok');
+
     livewire(ViewAsset::class, ['record' => $this->asset->getRouteKey()])
         ->callAction('transfer', [
             'site_id' => $this->siege->id,
