@@ -1,0 +1,49 @@
+{
+  "_lisez_moi": "Cas de référence pour le calcul des amortissements. Montants en FCFA entiers. Convention : prorata temporis en jours, année de 360 jours, mois de 30 jours (le 31 compte comme le 30), point de départ = date de mise en service incluse. Chaque dotation est arrondie au franc (demi-unité supérieure) ; la dernière dotation absorbe l'écart d'arrondi. TOUS CES CAS DOIVENT ÊTRE VALIDÉS PAR LE COMPTABLE DE L'ÉGLISE avant d'être considérés comme définitifs (voir docs/06-questions-ouvertes.md). Le cas A7 (dégressif) est provisoire tant que la méthode n'est pas retenue.",
+  "cas": [
+    {"id":"A1","titre":"Exemple du cahier des charges, année pleine","methode":"lineaire","valeur_origine":600000,"valeur_residuelle":0,"duree_ans":3,"mise_en_service":"2024-01-01","attendu":[
+      {"exercice":2024,"jours":360,"dotation":200000,"cumul":200000,"vnc":400000},
+      {"exercice":2025,"jours":360,"dotation":200000,"cumul":400000,"vnc":200000},
+      {"exercice":2026,"jours":360,"dotation":200000,"cumul":600000,"vnc":0}]},
+    {"id":"A2","titre":"Prorata temporis première et dernière année","methode":"lineaire","valeur_origine":540000,"valeur_residuelle":0,"duree_ans":3,"mise_en_service":"2024-03-18","attendu":[
+      {"exercice":2024,"jours":283,"dotation":141500,"cumul":141500,"vnc":398500},
+      {"exercice":2025,"jours":360,"dotation":180000,"cumul":321500,"vnc":218500},
+      {"exercice":2026,"jours":360,"dotation":180000,"cumul":501500,"vnc":38500},
+      {"exercice":2027,"jours":77,"dotation":38500,"cumul":540000,"vnc":0}]},
+    {"id":"A3","titre":"Mise en service en fin d'année, arrondi au franc","methode":"lineaire","valeur_origine":385000,"valeur_residuelle":0,"duree_ans":5,"mise_en_service":"2026-10-26","attendu":[
+      {"exercice":2026,"jours":65,"dotation":13903,"cumul":13903,"vnc":371097},
+      {"exercice":2027,"jours":360,"dotation":77000,"cumul":90903,"vnc":294097},
+      {"exercice":2028,"jours":360,"dotation":77000,"cumul":167903,"vnc":217097},
+      {"exercice":2029,"jours":360,"dotation":77000,"cumul":244903,"vnc":140097},
+      {"exercice":2030,"jours":360,"dotation":77000,"cumul":321903,"vnc":63097},
+      {"exercice":2031,"jours":295,"dotation":63097,"cumul":385000,"vnc":0}]},
+    {"id":"A4","titre":"Valeur résiduelle non nulle","methode":"lineaire","valeur_origine":450000,"valeur_residuelle":50000,"duree_ans":5,"mise_en_service":"2025-07-01","attendu":[
+      {"exercice":2025,"jours":180,"dotation":40000,"cumul":40000,"vnc":410000},
+      {"exercice":2026,"jours":360,"dotation":80000,"cumul":120000,"vnc":330000},
+      {"exercice":2027,"jours":360,"dotation":80000,"cumul":200000,"vnc":250000},
+      {"exercice":2028,"jours":360,"dotation":80000,"cumul":280000,"vnc":170000},
+      {"exercice":2029,"jours":360,"dotation":80000,"cumul":360000,"vnc":90000},
+      {"exercice":2030,"jours":180,"dotation":40000,"cumul":400000,"vnc":50000}]},
+    {"id":"A5","titre":"Sortie du patrimoine en cours d'exercice (dotation arrêtée à la date de sortie incluse)","methode":"lineaire","valeur_origine":4800000,"valeur_residuelle":0,"duree_ans":8,"mise_en_service":"2022-06-15","date_sortie":"2026-10-26","attendu":[
+      {"exercice":2022,"jours":196,"dotation":326667,"cumul":326667,"vnc":4473333},
+      {"exercice":2023,"jours":360,"dotation":600000,"cumul":926667,"vnc":3873333},
+      {"exercice":2024,"jours":360,"dotation":600000,"cumul":1526667,"vnc":3273333},
+      {"exercice":2025,"jours":360,"dotation":600000,"cumul":2126667,"vnc":2673333},
+      {"exercice":2026,"jours":296,"dotation":493333,"cumul":2620000,"vnc":2180000}]},
+    {"id":"A6","titre":"Allongement de la durée de 3 à 4 ans à partir de 2026, exercices 2024 et 2025 clôturés","methode":"lineaire","valeur_origine":540000,"valeur_residuelle":0,"duree_ans":3,"mise_en_service":"2024-03-18",
+      "modification":{"a_partir_de":2026,"nouvelle_duree_ans":4,"regle":"Les exercices clôturés ne bougent pas. La VNC au 01/01/2026 (218 500) est répartie sur la durée restante recalculée : fin au 17/03/2028, soit 797 jours."},
+      "attendu":[
+      {"exercice":2024,"jours":283,"dotation":141500,"cumul":141500,"vnc":398500},
+      {"exercice":2025,"jours":360,"dotation":180000,"cumul":321500,"vnc":218500},
+      {"exercice":2026,"jours":360,"dotation":98695,"cumul":420195,"vnc":119805},
+      {"exercice":2027,"jours":360,"dotation":98695,"cumul":518890,"vnc":21110},
+      {"exercice":2028,"jours":77,"dotation":21110,"cumul":540000,"vnc":0}]},
+    {"id":"A7","titre":"Dégressif coefficient 2, prorata en mois, bascule en linéaire quand l'annuité linéaire restante devient supérieure (PROVISOIRE, à valider)","methode":"degressif","valeur_origine":1000000,"valeur_residuelle":0,"duree_ans":5,"coefficient":2,"mise_en_service":"2024-01-01","attendu":[
+      {"exercice":2024,"mois":12,"dotation":400000,"cumul":400000,"vnc":600000},
+      {"exercice":2025,"mois":12,"dotation":240000,"cumul":640000,"vnc":360000},
+      {"exercice":2026,"mois":12,"dotation":144000,"cumul":784000,"vnc":216000},
+      {"exercice":2027,"mois":12,"dotation":108000,"cumul":892000,"vnc":108000},
+      {"exercice":2028,"mois":12,"dotation":108000,"cumul":1000000,"vnc":0}]},
+    {"id":"A8","titre":"Bien sous le seuil d'immobilisation (100 000 FCFA) : aucun plan généré","methode":"aucune","valeur_origine":80000,"mise_en_service":"2026-05-10","attendu":[]}
+  ]
+}
