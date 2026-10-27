@@ -71,6 +71,7 @@ class AssetInfolist
                                 ]),
                             ]),
                     ]),
+                AssetDepreciationTab::counters(),
                 Tabs::make('Fiche')
                     ->persistTabInQueryString()
                     ->tabs([
@@ -115,6 +116,7 @@ class AssetInfolist
                                 TextEntry::make('notes')->hiddenLabel()->placeholder('Aucune observation.'),
                             ]),
                         ]),
+                        AssetDepreciationTab::tab(),
                         Tab::make('Journal')->schema([
                             Text::make(fn (Asset $record): HtmlString => self::history($record)),
                         ]),

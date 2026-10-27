@@ -36,6 +36,7 @@ class DemoSeeder extends Seeder
             UsersDemoSeeder::class,
             AssetsDemoSeeder::class,
             MovementsDemoSeeder::class,
+            DepreciationDemoSeeder::class,
             AcquisitionsDemoSeeder::class,
         ]);
     }

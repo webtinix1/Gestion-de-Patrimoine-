@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Assets;
 
+use App\Filament\Resources\Assets\Pages\AssetDepreciationSchedule;
 use App\Filament\Resources\Assets\Pages\CreateAsset;
 use App\Filament\Resources\Assets\Pages\EditAsset;
 use App\Filament\Resources\Assets\Pages\ListAssets;
@@ -88,6 +89,7 @@ class AssetResource extends Resource
             'create' => CreateAsset::route('/create'),
             'view' => ViewAsset::route('/{record}'),
             'edit' => EditAsset::route('/{record}/edit'),
+            'depreciation' => AssetDepreciationSchedule::route('/{record}/amortissement'),
         ];
     }
 }

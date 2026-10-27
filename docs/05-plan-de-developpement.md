@@ -63,12 +63,12 @@ Sites, départements (multi-sites), services, locaux, catégories (préfixe, rè
 
 À commencer par les tests : tous les cas de `tests/Fixtures/amortissements.json` en test paramétré.
 
-- [ ] `DepreciationCalculator` pur (sans base de données), linéaire avec prorata 360 jours, arrondi et dernière annuité (A1 à A5, A8).
-- [ ] Dégressif derrière un paramètre désactivé par défaut (A7).
-- [ ] Changement de paramètre prospectif avec motif et historique (A6).
-- [ ] Exercices : ouverture, clôture avec points d'attention, lignes figées après clôture.
-- [ ] Plan par bien (E31), tableau des immobilisations par exercice (E30), règles par catégorie (E32).
-- [ ] Commande `patrimoine:recalculer-plans` idempotente.
+- [x] `DepreciationCalculator` pur (sans base de données), linéaire avec prorata 360 jours, arrondi et dernière annuité (A1 à A5, A8). *Test paramétré lu depuis le fichier de cas ; A5 avec la date de sortie, l'action de sortie viendra au lot 10. Cas à faire signer par le comptable (Q9).*
+- [x] Dégressif derrière un paramètre désactivé par défaut (A7).
+- [x] Changement de paramètre prospectif avec motif et historique (A6).
+- [x] Exercices : ouverture, clôture avec points d'attention, lignes figées après clôture. *Points d'attention « sorties » et « inventaires » affichés comme non vérifiables jusqu'aux lots 10 et 9.*
+- [x] Plan par bien (E31), tableau des immobilisations par exercice (E30), règles par catégorie (E32). *Plus E33 (exercices), onglet Amortissement de la fiche et exports PDF et Excel du plan. Pas d'export du tableau E30 (rapports du lot 11).*
+- [x] Commande `patrimoine:recalculer-plans` idempotente.
 
 ## Lot 8. Prêts, maintenance et signalements (1,5 j) · E15 à E17, E22 à E25 · RG-55 à RG-64
 

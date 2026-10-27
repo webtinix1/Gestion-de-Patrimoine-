@@ -2,6 +2,7 @@
 
 namespace App\Actions\Assets;
 
+use App\Actions\Depreciation\SyncDepreciationSchedule;
 use App\Exceptions\ConcurrentModificationException;
 use App\Models\Asset;
 use App\Models\AssetCategory;
@@ -55,6 +56,7 @@ class UpdateAsset
                 $current->status,
                 $current->id,
             ));
+            app(SyncDepreciationSchedule::class)->afterAssetUpdate($current);
 
             // RG-21 : un changement d'affectation fait depuis la fiche laisse aussi un mouvement.
             $after = $this->movements->assignmentOf($current);

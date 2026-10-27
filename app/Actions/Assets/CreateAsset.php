@@ -2,6 +2,7 @@
 
 namespace App\Actions\Assets;
 
+use App\Actions\Depreciation\SyncDepreciationSchedule;
 use App\Actions\Movements\RecordInitialAssignment;
 use App\Models\Asset;
 use App\Models\AssetCategory;
@@ -33,6 +34,7 @@ class CreateAsset
             $asset->forceFill(['number' => $this->numbers->next($category)]);
             $asset->save();
             app(RecordInitialAssignment::class)($asset); // RG-22
+            app(SyncDepreciationSchedule::class)($asset);
 
             return $asset;
         }, attempts: 5);
