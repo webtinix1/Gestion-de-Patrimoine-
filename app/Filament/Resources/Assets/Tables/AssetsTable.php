@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Assets\Tables;
 
 use App\Enums\AssetStatus;
+use App\Filament\Actions\TransferAction;
 use App\Models\Asset;
 use App\Models\AssetCondition;
 use App\Support\Money;
@@ -104,6 +105,9 @@ class AssetsTable
             ->recordActions([
                 ViewAction::make(),
                 EditAction::make(),
+            ])
+            ->toolbarActions([
+                TransferAction::bulk(),
             ]);
     }
 }

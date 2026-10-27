@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Assets\Pages;
 
+use App\Filament\Actions\TransferAction;
 use App\Filament\Resources\Assets\AssetResource;
 use App\Models\Asset;
 use Filament\Actions\EditAction;
@@ -22,7 +23,11 @@ class ViewAsset extends ViewRecord
 
     protected function getHeaderActions(): array
     {
+        /** @var Asset $asset */
+        $asset = $this->getRecord();
+
         return [
+            TransferAction::single($asset),
             EditAction::make(),
         ];
     }
