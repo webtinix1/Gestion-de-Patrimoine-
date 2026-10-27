@@ -56,7 +56,6 @@ class UpdateAsset
                 $current->status,
                 $current->id,
             ));
-            app(SyncDepreciationSchedule::class)->afterAssetUpdate($current);
 
             // RG-21 : un changement d'affectation fait depuis la fiche laisse aussi un mouvement.
             $after = $this->movements->assignmentOf($current);
@@ -67,6 +66,9 @@ class UpdateAsset
             }
 
             $current->save();
+
+            // Le recalcul du plan s'appuie sur les modifications enregistrées (getChanges).
+            app(SyncDepreciationSchedule::class)->afterAssetUpdate($current);
 
             if ($assignmentChanged) {
                 $this->movements->record($current, $before, $after, today(), 'Modification de la fiche');
