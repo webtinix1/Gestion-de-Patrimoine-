@@ -17,9 +17,9 @@ Projet Laravel 13 + Filament 5, panneau `/admin`, langue française, fuseau `Afr
 
 Sites, départements (multi-sites), services, locaux, catégories (préfixe, règles par défaut), états, fournisseurs, types de documents.
 
-- [ ] Création, modification, désactivation ; pas de suppression d'un élément utilisé.
-- [ ] Départements affichés avec leurs services.
-- [ ] Seeders de référence (états, catégories par défaut) et de démonstration.
+- [x] Création, modification, désactivation ; pas de suppression d'un élément utilisé.
+- [x] Départements affichés avec leurs services.
+- [x] Seeders de référence (états, catégories par défaut) et de démonstration.
 
 ## Lot 2. Utilisateurs, droits et journal (1,5 j) · E01, E04, E38 à E40 · RG-70 à RG-72, RG-80 à RG-85
 
