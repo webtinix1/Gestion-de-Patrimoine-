@@ -38,10 +38,11 @@ return [
             'database' => env('DB_DATABASE', database_path('database.sqlite')),
             'prefix' => '',
             'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
-            'busy_timeout' => null,
+            'busy_timeout' => 10000,
             'journal_mode' => null,
             'synchronous' => null,
-            'transaction_mode' => 'DEFERRED',
+            // RG-03 : transactions exclusives pour que le compteur de numéros ne soit jamais lu deux fois.
+            'transaction_mode' => 'IMMEDIATE',
         ],
 
         'mysql' => [
