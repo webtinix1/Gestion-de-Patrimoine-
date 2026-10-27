@@ -14,7 +14,9 @@ use Illuminate\Support\Facades\DB;
  * RG-03 : le compteur est incrémenté sous verrou de ligne exclusif, dans une transaction ;
  * l'index unique sur assets.number reste le dernier rempart. Appelé dans une transaction
  * englobante, c'est elle qui doit prévoir les nouvelles tentatives en cas d'interblocage.
- * RG-04 : un numéro consommé n'est jamais réattribué, même si la création échoue ensuite.
+ * RG-04 : un numéro attribué à un bien enregistré n'est jamais réattribué. Si la transaction de
+ * création est annulée, l'incrément l'est aussi : le numéro n'a jamais désigné de bien et
+ * reste disponible, ce qui garde des numéros consécutifs.
  */
 class AssetNumberGenerator
 {
