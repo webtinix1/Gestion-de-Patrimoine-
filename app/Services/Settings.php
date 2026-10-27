@@ -23,6 +23,20 @@ class Settings
 
     public const string CHURCH_ACRONYM = 'church_acronym';
 
+    // Q1 / RG-32 : prorata temporis (seul le mode « jours sur 360 » est défini à ce jour).
+    public const string DEPRECIATION_PRORATA = 'depreciation_prorata';
+
+    public const string PRORATA_DAYS_360 = 'days_360';
+
+    // Q4 / RG-35 : méthode dégressive, désactivée par défaut, et ses coefficients.
+    public const string DECLINING_ENABLED = 'declining_enabled';
+
+    public const string DECLINING_COEFFICIENT_3_4 = 'declining_coefficient_3_4';
+
+    public const string DECLINING_COEFFICIENT_5_6 = 'declining_coefficient_5_6';
+
+    public const string DECLINING_COEFFICIENT_OVER_6 = 'declining_coefficient_over_6';
+
     // RG-66 : documents.
     public const string DOCUMENT_MAX_SIZE_KB = 'document_max_size_kb';
 
@@ -42,6 +56,11 @@ class Settings
         self::CHURCH_NAME => '[Nom de l\'Église]',
         self::CHURCH_ACRONYM => '[SIGLE]',
         self::DOCUMENT_MAX_SIZE_KB => 20480,
+        self::DEPRECIATION_PRORATA => self::PRORATA_DAYS_360,
+        self::DECLINING_ENABLED => false,
+        self::DECLINING_COEFFICIENT_3_4 => '1.5',
+        self::DECLINING_COEFFICIENT_5_6 => '2',
+        self::DECLINING_COEFFICIENT_OVER_6 => '2.5',
     ];
 
     /** @var array<string, mixed>|null */
@@ -73,5 +92,10 @@ class Settings
         $value = $this->get($key);
 
         return is_numeric($value) ? (int) $value : 0;
+    }
+
+    public function bool(string $key): bool
+    {
+        return filter_var($this->get($key), FILTER_VALIDATE_BOOL);
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Actions\Assets;
 
+use App\Actions\Depreciation\SyncDepreciationSchedule;
 use App\Exceptions\ConcurrentModificationException;
 use App\Models\Asset;
 use App\Models\AssetCategory;
@@ -53,6 +54,7 @@ class UpdateAsset
                 $current->status,
                 $current->id,
             ));
+            app(SyncDepreciationSchedule::class)->afterAssetUpdate($current);
 
             $asset->setRawAttributes($current->getAttributes(), sync: true);
 

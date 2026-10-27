@@ -3,9 +3,9 @@
 namespace App\Actions\Assets;
 
 use App\Enums\AssetStatus;
-use App\Enums\DepreciationMethod;
 use App\Models\AssetCategory;
 use App\Services\DepreciabilityResolver;
+use App\Services\DepreciationRules;
 use App\Services\SerialNumberGuard;
 use Illuminate\Validation\ValidationException;
 
@@ -55,7 +55,7 @@ class ApplyAssetRules
         if ($data['is_depreciable']) {
             // RG-31 : paramètres par défaut issus de la catégorie, modifiables sur la fiche.
             // RG-35 : le dégressif reste désactivé tant que le comptable ne l'a pas retenu.
-            $data['depreciation_method'] = DepreciationMethod::Linear;
+            $data['depreciation_method'] = app(DepreciationRules::class)->methodFor($category, $data['depreciation_method'] ?? null, $assetId);
             $data['duration_years'] = ($data['duration_years'] ?? null) ?: $category->default_duration_years;
             $data['residual_value'] = (int) ($data['residual_value'] ?? 0);
             $data['asset_account'] = ($data['asset_account'] ?? null) ?: $category->asset_account;

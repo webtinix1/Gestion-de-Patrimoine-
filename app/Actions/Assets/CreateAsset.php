@@ -2,6 +2,7 @@
 
 namespace App\Actions\Assets;
 
+use App\Actions\Depreciation\SyncDepreciationSchedule;
 use App\Models\Asset;
 use App\Models\AssetCategory;
 use App\Services\AssetNumberGenerator;
@@ -31,6 +32,7 @@ class CreateAsset
             $asset = new Asset($data);
             $asset->forceFill(['number' => $this->numbers->next($category)]);
             $asset->save();
+            app(SyncDepreciationSchedule::class)($asset);
 
             return $asset;
         }, attempts: 5);
