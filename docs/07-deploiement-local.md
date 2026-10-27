@@ -12,6 +12,8 @@ Cible : un serveur ou un PC dédié sur le réseau de l'Église, accessible depu
 
 Ubuntu Server LTS, Nginx, PHP-FPM 8.3 ou plus avec les extensions `intl`, `gd`, `zip`, `bcmath`, `mbstring`, `pdo_mysql`, MySQL 8.
 
+Pour accepter les documents de 20 Mo (RG-66), régler dans `php.ini` : `upload_max_filesize = 25M` et `post_max_size = 30M` (et `client_max_body_size 30m;` dans Nginx). Les valeurs par défaut de PHP (2 Mo et 8 Mo) bloqueraient l'envoi. Ces réglages valent aussi pour l'option Windows.
+
 1. Préparer sur une machine connectée : `composer install --no-dev --optimize-autoloader` et `npm ci && npm run build`. Le paquet livré contient `vendor/` et `public/build/` : aucune installation depuis Internet sur le site.
 2. Copier l'application dans `/var/www/patrimoine`, configurer `.env` (`APP_ENV=production`, `APP_DEBUG=false`, `APP_URL=http://patrimoine.local`, `APP_TIMEZONE=Africa/Brazzaville`, base de données).
 3. `php artisan key:generate`, `php artisan migrate --force`, `php artisan db:seed --class=ReferenceSeeder --force`, puis `php artisan optimize`. Pas de `storage:link` : les fichiers sont privés et servis après contrôle des droits.

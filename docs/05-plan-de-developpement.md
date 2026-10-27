@@ -28,17 +28,17 @@ Sites, départements (multi-sites), services, locaux, catégories (préfixe, rè
 - [x] Blocage après 5 échecs, déconnexion après inactivité, mot de passe provisoire à changer.
 - [x] Désactivation d'un compte sans perte d'historique.
 - [x] Journal des opérations en lecture seule avec avant et après et IP.
-- [ ] Test : un responsable de département ne voit aucun bien hors de son périmètre, même par l'URL directe. *Le mécanisme est testé sur les locaux (liste et URL directe). Le test sur les biens se fera au lot 3, quand la table existera.*
+- [x] Test : un responsable de département ne voit aucun bien hors de son périmètre, même par l'URL directe. *Testé au lot 3 sur les biens : liste, URL directe, recherche par code, exports, documents, photo et journal.*
 
 ## Lot 3. Biens (2 j) · E05 à E08, E28, E43 · RG-01 à RG-05, RG-10 à RG-14, RG-65, RG-66, RG-86
 
-- [ ] Génération du numéro dans les trois formats, avec test de concurrence (créations simultanées sans doublon).
-- [ ] Numéro jamais modifiable ni réutilisé.
-- [ ] Liste avec tous les filtres de E05, recherche globale, exports.
-- [ ] Fiche avec onglets (ceux des lots suivants sont ajoutés au fil de l'eau).
-- [ ] Recherche par code avec douchette : saisie + Entrée ouvre la fiche ; code inconnu géré.
-- [ ] Photo et documents rattachés, stockés hors du dossier public.
-- [ ] Modification simultanée détectée (RG-86).
+- [x] Génération du numéro dans les trois formats, avec test de concurrence (créations simultanées sans doublon). *Test en processus parallèles sur SQLite et sur MariaDB.*
+- [x] Numéro jamais modifiable ni réutilisé.
+- [x] Liste avec tous les filtres de E05, recherche globale, exports.
+- [x] Fiche avec onglets (ceux des lots suivants sont ajoutés au fil de l'eau).
+- [x] Recherche par code avec douchette : saisie + Entrée ouvre la fiche ; code inconnu géré. *Test réel avec la douchette du client au lot 4.*
+- [x] Photo et documents rattachés, stockés hors du dossier public.
+- [x] Modification simultanée détectée (RG-86).
 
 ## Lot 4. Étiquettes (1 j) · E09, E10 · RG-95 à RG-97
 
