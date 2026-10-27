@@ -34,6 +34,7 @@ class DemoSeeder extends Seeder
         $this->call([
             StructureDemoSeeder::class,
             UsersDemoSeeder::class,
+            AssetsDemoSeeder::class,
         ]);
     }
 }
