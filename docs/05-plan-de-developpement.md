@@ -23,12 +23,12 @@ Sites, départements (multi-sites), services, locaux, catégories (préfixe, rè
 
 ## Lot 2. Utilisateurs, droits et journal (1,5 j) · E01, E04, E38 à E40 · RG-70 à RG-72, RG-80 à RG-85
 
-- [ ] Cinq rôles livrés avec la matrice de droits par défaut ; matrice modifiable (Shield).
-- [ ] Périmètre par sites et départements appliqué par un scope global sur toutes les requêtes métier.
-- [ ] Blocage après 5 échecs, déconnexion après inactivité, mot de passe provisoire à changer.
-- [ ] Désactivation d'un compte sans perte d'historique.
-- [ ] Journal des opérations en lecture seule avec avant et après et IP.
-- [ ] Test : un responsable de département ne voit aucun bien hors de son périmètre, même par l'URL directe.
+- [x] Cinq rôles livrés avec la matrice de droits par défaut ; matrice modifiable (Shield). *Matrice faite sans Shield, voir le journal technique.*
+- [x] Périmètre par sites et départements appliqué par un scope global sur toutes les requêtes métier. *Appliqué aux sites, départements, services et locaux ; les biens le recevront au lot 3.*
+- [x] Blocage après 5 échecs, déconnexion après inactivité, mot de passe provisoire à changer.
+- [x] Désactivation d'un compte sans perte d'historique.
+- [x] Journal des opérations en lecture seule avec avant et après et IP.
+- [ ] Test : un responsable de département ne voit aucun bien hors de son périmètre, même par l'URL directe. *Le mécanisme est testé sur les locaux (liste et URL directe). Le test sur les biens se fera au lot 3, quand la table existera.*
 
 ## Lot 3. Biens (2 j) · E05 à E08, E28, E43 · RG-01 à RG-05, RG-10 à RG-14, RG-65, RG-66, RG-86
 
