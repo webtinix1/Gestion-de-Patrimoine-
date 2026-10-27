@@ -1,0 +1,62 @@
+<?php
+
+namespace App\Actions\Assets;
+
+use App\Exceptions\ConcurrentModificationException;
+use App\Models\Asset;
+use App\Models\AssetCategory;
+use App\Models\User;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
+
+/**
+ * Modifie une fiche. Le numéro ne bouge jamais (RG-04) ; une fiche sortie est en lecture seule (RG-52).
+ */
+class UpdateAsset
+{
+    public function __construct(private ApplyAssetRules $rules) {}
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @param  int|null  $expectedVersion  RG-86 : version de la fiche lue à l'ouverture du formulaire.
+     */
+    public function __invoke(Asset $asset, array $data, ?int $expectedVersion = null): Asset
+    {
+        return DB::transaction(function () use ($asset, $data, $expectedVersion): Asset {
+            // RG-86 : contrôle de version et enregistrement sous le même verrou, sans écart possible.
+            $current = Asset::query()->withoutGlobalScopes()->lockForUpdate()->findOrFail($asset->getKey());
+
+            if ($expectedVersion !== null && $current->lock_version !== $expectedVersion) {
+                throw new ConcurrentModificationException(
+                    $current->updated_by ? User::query()->find($current->updated_by) : null,
+                    $current->updated_at,
+                );
+            }
+
+            if ($current->isDisposed()) {
+                throw ValidationException::withMessages([
+                    'data.designation' => 'Ce bien est sorti du patrimoine : sa fiche ne peut plus être modifiée.',
+                ]);
+            }
+
+            unset($data['number'], $data['lock_version']);
+
+            // RG-12 : un statut posé par une opération (prêt, maintenance) ne se change pas à la main.
+            if (! $current->status->isManuallySelectable()) {
+                unset($data['status']);
+            }
+
+            $category = AssetCategory::query()->findOrFail($data['asset_category_id'] ?? $current->asset_category_id);
+            $current->update(($this->rules)(
+                [...$current->only(['acquisition_cost', 'depreciation_forced_off', 'status']), ...$data],
+                $category,
+                $current->status,
+                $current->id,
+            ));
+
+            $asset->setRawAttributes($current->getAttributes(), sync: true);
+
+            return $asset;
+        }, attempts: 3);
+    }
+}
