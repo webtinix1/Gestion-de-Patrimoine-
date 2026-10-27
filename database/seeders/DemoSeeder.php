@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\User;
+use App\Support\DefaultRoles;
 use Illuminate\Database\Seeder;
 
 /**
@@ -12,11 +13,12 @@ class DemoSeeder extends Seeder
 {
     public const string ADMIN_USERNAME = 'admin';
 
+    // Mot de passe commun à tous les comptes de démonstration.
     public const string ADMIN_PASSWORD = 'Patrimoine2026';
 
     public function run(): void
     {
-        User::query()->updateOrCreate(
+        $admin = User::query()->updateOrCreate(
             ['username' => self::ADMIN_USERNAME],
             [
                 'first_name' => 'Administrateur',
@@ -27,7 +29,11 @@ class DemoSeeder extends Seeder
                 'is_active' => true,
             ],
         );
+        $admin->syncRoles([DefaultRoles::ADMIN]);
 
-        $this->call(StructureDemoSeeder::class);
+        $this->call([
+            StructureDemoSeeder::class,
+            UsersDemoSeeder::class,
+        ]);
     }
 }
