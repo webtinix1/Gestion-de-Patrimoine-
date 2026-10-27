@@ -25,6 +25,21 @@ Compatibilité vérifiée sur Packagist le 27/10/2026 : Laravel 13 exige PHP ^8.
 
 **Composer sur ce poste** : `composer require` et `composer dump-autoload` se figent pendant les scripts lancés après la génération de l'autoloader (aucune activité processeur). Contournement : `composer dump-autoload -n --no-scripts`, puis `php artisan package:discover` et `php artisan filament:upgrade`. Toujours rediriger l'entrée standard (`</dev/null`).
 
+## Lot 6 · Mouvements et transferts · 28/10/2026
+
+- **Fait** :
+  - Table `movements` (colonnes `from_*` et `to_*` pour site, département, service, local, responsable ; `batch_uuid` ; `created_by`). Un mouvement ne se modifie ni ne se supprime (modèle et policy). Type déduit des éléments modifiés (`MovementType` : initial, département, service, local, site, responsable, multiple) par `App\Services\MovementRecorder`.
+  - RG-22 : `RecordInitialAssignment`, appelée dans la transaction de `CreateAsset` (une ligne ajoutée), donc aussi pour les biens que créera le lot 5. `MovementsDemoSeeder` (idempotent, branché dans `DemoSeeder`) donne leur mouvement initial aux 300 biens de démonstration et ajoute 8 transferts d'exemple.
+  - RG-21, RG-23 : `App\Actions\Movements\TransferAssets`, tout ou rien : un mouvement par bien, même `batch_uuid` quand il y a plusieurs biens, mise à jour de l'affectation courante et de `assigned_since`, version RG-86 incrémentée (contrôle de la version d'ouverture sous verrou pour le transfert unitaire), refus d'un bien sorti, d'un bien hors périmètre, d'une affectation identique, d'une date future, d'un service hors du département, d'un local hors du site, d'un référentiel désactivé. Justificatif facultatif rattaché aux biens (type « Document de transfert »). Journal RG-70 : une entrée « Transfert d'un bien » par bien, avec avant et après.
+  - Écrans : action « Transférer » unitaire (en-tête de la fiche) et groupée (liste des biens) avec affectation actuelle en lecture, champs modifiés en évidence, compteur de champs modifiés, motif libre avec suggestions (Q22), case de réimpression d'étiquette (RG-24, renvoi vers `/admin/etiquettes?biens=…`) ; ressource « Mouvements » en lecture seule (Opérations, première entrée) avec filtres bien, type, site, département, utilisateur et période ; onglet « Affectation et mouvements » sur la fiche.
+- **Décisions** :
+  - Une modification d'affectation faite depuis le formulaire du bien (lot 3) enregistre aussi un mouvement « Modification de la fiche » (`UpdateAsset`), pour que RG-21 reste vraie (Q61).
+  - Le transfert vers une affectation hors du périmètre de l'utilisateur est accepté ; seul le bien de départ doit être dans son périmètre (Q60).
+  - Le transfert groupé n'a pas de contrôle de version par bien (la liste n'ouvre pas les fiches), mais s'exécute sous verrou de ligne.
+  - Les identifiants passés à la page des étiquettes sont des identifiants de biens séparés par des virgules (Q62), à ajuster si le lot 4 attend les numéros patrimoniaux.
+- **Questions ajoutées** : Q60, Q61, Q62 (numérotées à part pour ne pas entrer en collision avec les autres lots).
+- **À tester à la main** : transférer un bien depuis sa fiche (champs mis en évidence, case d'étiquette, redirection quand la page des étiquettes existe) ; transférer 3 biens depuis la liste ; ouvrir l'onglet « Affectation et mouvements » ; filtrer la liste des mouvements ; vérifier qu'un responsable de département ne voit pas le bouton « Transférer ».
+
 ## Lot 3 · Biens · 27/10/2026
 
 - **Fait** :
