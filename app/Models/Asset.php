@@ -34,6 +34,7 @@ use Spatie\Activitylog\Traits\LogsActivity;
  * @property string|null $invoice_reference
  * @property int|null $acquisition_cost
  * @property FundingSource|null $funding_source
+ * @property int|null $acquisition_line_id
  * @property int $site_id
  * @property int $department_id
  * @property int|null $service_id
@@ -57,7 +58,7 @@ use Spatie\Activitylog\Traits\LogsActivity;
  */
 #[Fillable([
     'designation', 'asset_category_id', 'brand', 'model', 'serial_number', 'description', 'photo_path',
-    'acquired_on', 'in_service_on', 'supplier_id', 'invoice_reference', 'acquisition_cost', 'funding_source',
+    'acquired_on', 'in_service_on', 'supplier_id', 'invoice_reference', 'acquisition_cost', 'funding_source', 'acquisition_line_id',
     'site_id', 'department_id', 'service_id', 'room_id', 'holder_id', 'assigned_since',
     'asset_condition_id', 'status', 'notes',
     'is_depreciable', 'depreciation_forced_off', 'depreciation_method', 'duration_years', 'residual_value',

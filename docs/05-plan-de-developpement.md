@@ -49,9 +49,9 @@ Sites, départements (multi-sites), services, locaux, catégories (préfixe, rè
 
 ## Lot 5. Acquisitions (1 j) · E11, E12 · RG-15, RG-16
 
-- [ ] Acquisition multi-lignes avec justificatifs.
-- [ ] Validation : une fiche par unité suivie, numéros consécutifs, paramètres d'amortissement de la catégorie appliqués.
-- [ ] Enchaînement vers l'impression des étiquettes des biens créés.
+- [x] Acquisition multi-lignes avec justificatifs.
+- [x] Validation : une fiche par unité suivie, numéros consécutifs, paramètres d'amortissement de la catégorie appliqués.
+- [x] Enchaînement vers l'impression des étiquettes des biens créés (redirection vers /admin/etiquettes?biens=…, page du lot 4).
 
 ## Lot 6. Mouvements et transferts (1 j) · E13, E14 · RG-20 à RG-24
 

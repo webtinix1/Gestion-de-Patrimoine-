@@ -25,6 +25,37 @@ Compatibilité vérifiée sur Packagist le 27/10/2026 : Laravel 13 exige PHP ^8.
 
 **Composer sur ce poste** : `composer require` et `composer dump-autoload` se figent pendant les scripts lancés après la génération de l'autoloader (aucune activité processeur). Contournement : `composer dump-autoload -n --no-scripts`, puis `php artisan package:discover` et `php artisan filament:upgrade`. Toujours rediriger l'entrée standard (`</dev/null`).
 
+## Lot 5 · Acquisitions · 28/10/2026
+
+- **Fait** :
+  - Tables `acquisitions` et `acquisition_lines` (docs/03), montants `bigInteger`. `total_amount` et `line_total` sont toujours calculés (`App\Services\AcquisitionRules`), jamais repris de la saisie.
+  - Référence `ACQ-2026-039` (`App\Services\AcquisitionReferenceGenerator`) : un compteur par année dans la table `asset_number_sequences` (portée `ACQ-2026`), incrémenté sous verrou de ligne exclusif dans la transaction de création, comme le numéro patrimonial. Jamais réutilisée, même après suppression d'un brouillon.
+  - Actions `CreateAcquisition`, `UpdateAcquisition` (remplace les lignes d'un brouillon), `DeleteAcquisition`, `ValidateAcquisition`, `AttachAcquisitionDocuments`, `DetachAcquisitionDocument`.
+  - Validation (RG-15) : une seule transaction, verrou sur l'acquisition, une fiche par unité des lignes « suivi individuel » via `CreateAsset` (numéros consécutifs, paramètres d'amortissement de la catégorie par `ApplyAssetRules`), avec `acquisition_line_id`, fournisseur, facture, financement, site, département et prix unitaire ; une ligne non suivie ne crée rien. Une panne en cours de route annule toutes les fiches (testé). Une acquisition validée n'est plus modifiable ni supprimable (modèle, action, policy, page de modification en 403).
+  - RG-16 : après validation, redirection vers `url('/admin/etiquettes') . '?biens=<id1>,<id2>,…'` (`App\Support\LabelsUrl`, contrat avec le lot 4). Sans fiche créée (consommables seuls), retour à la fiche de l'acquisition. Bouton « Imprimer les étiquettes » sur une acquisition validée.
+  - Justificatifs : documents polymorphes (`documentables`), ajout à la création ou depuis l'onglet « Justificatifs » d'un brouillon ; case « Rattacher aussi aux biens créés » dans la fenêtre de validation. `Document::visible()` tient compte des acquisitions (les justificatifs apparaissent dans E28).
+  - Écrans : ressource « Acquisitions » (groupe Patrimoine, après Étiquettes) : liste avec recherche, exercice, période, site, département, financement, statut ; formulaire en trois blocs avec Repeater en tableau (désignation, catégorie, quantité, prix, total calculé, suivi individuel) et récapitulatif en direct ; fiche en lecture avec lignes et fiches créées.
+  - Droits : policy sur le module `acquisitions` appliquée telle quelle (consulter, créer, modifier, valider). Périmètre : scope global sur le site et le département de l'acquisition, et refus d'enregistrer une acquisition hors du périmètre de l'utilisateur.
+  - Journal (RG-70) : création, modification, validation (avec la liste des numéros créés), ajout et retrait de justificatifs.
+  - Démonstration : `AcquisitionsDemoSeeder` (appelé par `DemoSeeder`, idempotent) : ACQ-2026-038 validée et reliée à PAT-001248, ACQ-2026-039 en brouillon (valide de la maquette : PAT-001249 à PAT-001254), 037 et 036 en brouillon.
+- **Décisions** :
+  - Le gestionnaire n'a pas « valider » dans la matrice : seul l'administrateur valide (Q5.1).
+  - Fiches créées : état « Neuf » (à défaut, le premier état actif), statut « En service », mise en service vide (Q5.2).
+  - Supprimer un brouillon demande le droit « modifier » (Q5.3). Les fichiers des justificatifs d'un brouillon supprimé sont conservés.
+  - Quantité limitée à 500 par ligne et à 500 unités suivies par acquisition (contrôle à la saisie et à la validation : verrou du compteur tenu pendant la validation, durée, longueur de l'URL des étiquettes).
+  - L'année de la date d'acquisition d'un brouillon ne peut plus changer : la référence la porte (Q5.3).
+  - Correctifs de revue : les justificatifs d'acquisition ne sont visibles dans E28 qu'avec le droit `acquisitions.view` ; ajout et retrait d'un justificatif relisent l'état sous verrou ; RG-86 sur les brouillons (`lock_version`, `DetectsConcurrentEdits`, contrôle sous verrou dans `UpdateAcquisition`) ; la validation n'est plus proposée sur l'écran de modification (elle abandonnerait les modifications non enregistrées) ; fournisseur désactivé refusé ; journal des modifications d'un brouillon (en-tête et lignes, avant et après lisibles).
+  - Test de concurrence de la validation en processus parallèles (`tests/Feature/Acquisitions/ValidationAcquisitionConcurrenceTest.php`) : SQLite toujours, MySQL ou MariaDB avec les variables `CONCURRENCE_DB_*`.
+  - Les acquisitions de démonstration autres que 038 sont des brouillons : valider les 8 de la maquette créerait une trentaine de fiches et fausserait les 300 biens et le prochain numéro de la démonstration.
+  - Fichiers partagés touchés a minima : `Asset` (`acquisition_line_id` ajouté aux champs remplissables) et `Document` (relation `acquisitions`, visibilité), `DemoSeeder` (une ligne). `CreateAsset`, `AssetResource` et `AssetInfolist` ne sont pas modifiés.
+- **Écarts par rapport aux docs** : la colonne « Étiquettes » (à imprimer / imprimées) et le compteur de la maquette ne sont pas affichés, faute de suivi des impressions (Q5.4). La liste affiche un résumé en sous-titre plutôt que les quatre cartes. Pas d'export de la liste. La clé `assets.acquisition_line_id` n'a pas de contrainte étrangère (colonne du lot 3).
+- **Questions ajoutées** : Q5.1 à Q5.4 dans `docs/06`.
+- **À tester à la main** :
+  - Créer l'acquisition de la maquette (3 portables, 3 onduleurs, 6 câbles non suivis) avec une facture PDF, vérifier le total 2 280 000 et le récapitulatif « 6 fiches ».
+  - Valider avec le compte administrateur : 6 fiches PAT-001249 à PAT-001254, redirection vers /admin/etiquettes?biens=… (page livrée par le lot 4, à vérifier après fusion), case « Rattacher aussi aux biens créés ».
+  - Se connecter en gestionnaire : le bouton de validation n'apparaît pas. Se connecter avec un périmètre restreint : les autres acquisitions sont introuvables.
+  - Après validation, vérifier que la modification et la suppression sont refusées.
+
 ## Lot 3 · Biens · 27/10/2026
 
 - **Fait** :
