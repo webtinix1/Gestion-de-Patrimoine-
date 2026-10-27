@@ -3,6 +3,8 @@
 use App\Filament\Pages\Auth\Login;
 use App\Filament\Resources\Activities\Pages\ListActivities;
 use App\Models\Activity;
+use App\Models\Asset;
+use App\Models\Department;
 use App\Models\User;
 use App\Support\DefaultRoles;
 use Filament\Actions\DeleteAction;
@@ -65,6 +67,24 @@ it('affiche le journal en lecture seule', function () {
         ->assertActionDoesNotExist(TestAction::make(DeleteAction::class)->table($entry));
 
     $this->get('/admin/journal/create')->assertNotFound();
+});
+
+it('n\'affiche pas les opérations sur des biens hors du périmètre (RG-81)', function () {
+    $louange = Department::factory()->create();
+    $jeunesse = Department::factory()->create();
+    $own = Asset::factory()->create(['department_id' => $louange->id]);
+    $other = Asset::factory()->create(['department_id' => $jeunesse->id]);
+    $ownEntry = activity('biens')->performedOn($own)->log('Modification d\'une fiche');
+    $otherEntry = activity('biens')->performedOn($other)->log('Modification d\'une fiche');
+    $loginEntry = activity('connexion')->log('Connexion');
+
+    $manager = User::factory()->role(DefaultRoles::MANAGER)->create();
+    $manager->departments()->attach($louange);
+    $this->actingAs($manager);
+
+    livewire(ListActivities::class)
+        ->assertCanSeeTableRecords([$ownEntry, $loginEntry])
+        ->assertCanNotSeeTableRecords([$otherEntry]);
 });
 
 it('réserve le journal aux rôles qui ont le droit de le consulter', function () {
