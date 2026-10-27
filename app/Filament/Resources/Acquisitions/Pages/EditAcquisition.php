@@ -4,8 +4,9 @@ namespace App\Filament\Resources\Acquisitions\Pages;
 
 use App\Actions\Acquisitions\DeleteAcquisition;
 use App\Actions\Acquisitions\UpdateAcquisition;
+use App\Exceptions\ConcurrentModificationException;
 use App\Filament\Resources\Acquisitions\AcquisitionResource;
-use App\Filament\Resources\Acquisitions\Actions\ValidateAcquisitionAction;
+use App\Filament\Support\DetectsConcurrentEdits;
 use App\Models\Acquisition;
 use DomainException;
 use Filament\Actions\DeleteAction;
@@ -17,6 +18,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class EditAcquisition extends EditRecord
 {
+    use DetectsConcurrentEdits;
+
     protected static string $resource = AcquisitionResource::class;
 
     public function getTitle(): string|Htmlable
@@ -54,7 +57,11 @@ class EditAcquisition extends EditRecord
     {
         /** @var Acquisition $record */
         try {
-            return app(UpdateAcquisition::class)($record, $data);
+            return app(UpdateAcquisition::class)($record, $data, $this->openedLockVersion);
+        } catch (ConcurrentModificationException $exception) {
+            $this->notifyConcurrentModification($exception);
+
+            return $record;
         } catch (DomainException $exception) {
             Notification::make()->danger()->title($exception->getMessage())->send();
 
@@ -65,7 +72,7 @@ class EditAcquisition extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            ValidateAcquisitionAction::make(),
+            // La validation se fait depuis la fiche en lecture : elle abandonnerait les modifications non enregistrées.
             DeleteAction::make()
                 ->label('Supprimer le brouillon')
                 ->using(function (Acquisition $record): bool {

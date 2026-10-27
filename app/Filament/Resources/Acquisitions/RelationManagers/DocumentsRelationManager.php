@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Acquisitions\RelationManagers;
 
 use App\Actions\Acquisitions\AttachAcquisitionDocuments;
 use App\Actions\Acquisitions\DetachAcquisitionDocument;
+use App\Enums\AcquisitionStatus;
 use App\Enums\PermissionAbility;
 use App\Enums\PermissionModule;
 use App\Filament\Support\DocumentFields;
@@ -120,7 +121,7 @@ class DocumentsRelationManager extends RelationManager
         $user = auth()->user();
 
         return $user instanceof User
-            && $this->acquisition()->isDraft()
+            && Acquisition::query()->whereKey($this->acquisition()->getKey())->where('status', AcquisitionStatus::Draft)->exists()
             && $user->can(PermissionModule::Acquisitions->permission(PermissionAbility::Update))
             && $user->can(PermissionModule::Documents->permission($ability));
     }

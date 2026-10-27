@@ -29,6 +29,9 @@ use Spatie\Activitylog\Traits\LogsActivity;
  * @property int $site_id
  * @property int $department_id
  * @property int $total_amount
+ * @property int $lock_version
+ * @property int|null $updated_by
+ * @property Carbon|null $updated_at
  * @property AcquisitionStatus $status
  * @property Carbon|null $validated_at
  * @property int|null $validated_by
@@ -48,6 +51,9 @@ class Acquisition extends Model
             if ($acquisition->getOriginal('status') === AcquisitionStatus::Validated) {
                 throw new LogicException('Une acquisition validée n\'est plus modifiable.');
             }
+
+            // RG-86 : toute modification change la version du brouillon.
+            $acquisition->setAttribute('lock_version', (int) $acquisition->getOriginal('lock_version') + 1);
         });
 
         static::deleting(function (Acquisition $acquisition): void {

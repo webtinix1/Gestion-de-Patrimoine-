@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\PermissionAbility;
+use App\Enums\PermissionModule;
 use App\Support\FileSize;
 use Database\Factories\DocumentFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -106,8 +108,15 @@ class Document extends Model
 
         $unrestricted = $user->perimeterSiteIds() === null && $user->perimeterDepartmentIds() === null;
 
-        $query->where(function (Builder $query) use ($unrestricted): void {
-            $query->whereHas('assets')->orWhereHas('acquisitions');
+        // Les justificatifs d'une acquisition ne se voient qu'avec le droit de consulter les acquisitions.
+        $seesAcquisitions = $user->can(PermissionModule::Acquisitions->permission(PermissionAbility::View));
+
+        $query->where(function (Builder $query) use ($unrestricted, $seesAcquisitions): void {
+            $query->whereHas('assets');
+
+            if ($seesAcquisitions) {
+                $query->orWhereHas('acquisitions');
+            }
 
             if ($unrestricted) {
                 $query->orWhereNotExists(

@@ -22,6 +22,7 @@ return new class extends Migration
             $table->foreignId('department_id')->constrained()->restrictOnDelete();
             $table->bigInteger('total_amount')->default(0);
             $table->string('status', 20)->default('draft')->index();
+            $table->unsignedInteger('lock_version')->default(0);
             $table->timestamp('validated_at')->nullable();
             $table->foreignId('validated_by')->nullable()->constrained('users')->nullOnDelete();
             $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();

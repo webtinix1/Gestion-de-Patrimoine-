@@ -18,6 +18,30 @@ class AcquisitionRules
 
     public const int MAX_PRICE = 999_999_999_999;
 
+    // Le verrou du compteur est tenu pendant toute la validation, et les identifiants passent dans l'URL des étiquettes.
+    public const int MAX_TRACKED_UNITS = 500;
+
+    /**
+     * @param  iterable<mixed>  $lines
+     */
+    public static function trackedUnits(iterable $lines): int
+    {
+        $units = 0;
+
+        foreach ($lines as $line) {
+            if (! empty($line['tracked_individually'])) {
+                $units += (int) $line['quantity'];
+            }
+        }
+
+        return $units;
+    }
+
+    public static function tooManyUnitsMessage(): string
+    {
+        return 'Une acquisition ne peut pas créer plus de '.self::MAX_TRACKED_UNITS.' fiches : répartissez les lignes sur plusieurs acquisitions.';
+    }
+
     public static function lineTotal(int $quantity, int $unitPrice): int
     {
         return $quantity * $unitPrice;
@@ -32,7 +56,7 @@ class AcquisitionRules
         try {
             $validated = Validator::make($data, [
                 'acquired_on' => ['required', 'date', 'before_or_equal:today'],
-                'supplier_id' => ['required', Rule::exists('suppliers', 'id')],
+                'supplier_id' => ['required', Rule::exists('suppliers', 'id')->where('is_active', true)],
                 'invoice_reference' => ['nullable', 'string', 'max:255'],
                 'funding_source' => ['nullable', Rule::enum(FundingSource::class)],
                 'site_id' => ['required', Rule::exists('sites', 'id')],
@@ -57,6 +81,10 @@ class AcquisitionRules
         }
 
         $this->assertInPerimeter((int) $validated['site_id'], (int) $validated['department_id']);
+
+        if (self::trackedUnits($validated['lines']) > self::MAX_TRACKED_UNITS) {
+            throw ValidationException::withMessages(['data.lines' => self::tooManyUnitsMessage()]);
+        }
 
         $lines = array_values(array_map(function (array $line): array {
             $quantity = (int) $line['quantity'];

@@ -9,6 +9,7 @@ use App\Models\Acquisition;
 use App\Models\AcquisitionLine;
 use App\Models\Asset;
 use App\Models\AssetCondition;
+use App\Services\AcquisitionRules;
 use DomainException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -43,6 +44,10 @@ class ValidateAcquisition
 
             if ($lines->contains(fn ($line): bool => $line->tracked_individually && ! $line->category->is_active)) {
                 throw new DomainException('Une ligne utilise une catégorie désactivée : choisissez une catégorie active avant de valider.');
+            }
+
+            if (AcquisitionRules::trackedUnits($lines) > AcquisitionRules::MAX_TRACKED_UNITS) {
+                throw new DomainException(AcquisitionRules::tooManyUnitsMessage());
             }
 
             $condition = $this->condition();

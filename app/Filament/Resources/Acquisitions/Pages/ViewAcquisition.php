@@ -34,7 +34,7 @@ class ViewAcquisition extends ViewRecord
                 ->icon(Heroicon::OutlinedPrinter)
                 ->color('gray')
                 ->visible(fn (Acquisition $record): bool => $record->isValidated() && $record->assets()->exists())
-                ->url(fn (Acquisition $record): string => LabelsUrl::for($record->assets()->pluck('assets.id')->map(fn (mixed $id): int => (int) $id))),
+                ->url(fn (Acquisition $record): string => LabelsUrl::for($record->assets()->orderBy('assets.number')->pluck('assets.id')->map(fn (mixed $id): int => (int) $id))),
         ];
     }
 }

@@ -28,10 +28,6 @@ class AttachAcquisitionDocuments
      */
     public function __invoke(iterable $files, DocumentType $type, Acquisition $acquisition): Collection
     {
-        if (! $acquisition->isDraft()) {
-            throw new DomainException('Une acquisition validée n\'est plus modifiable : aucun justificatif ne peut y être ajouté.');
-        }
-
         $files = collect($files)->values();
 
         foreach ($files as $file) {
@@ -41,29 +37,38 @@ class AttachAcquisitionDocuments
         $stored = [];
 
         try {
-            return DB::transaction(fn () => $files->map(function (UploadedFile $file) use ($type, $acquisition, &$stored): Document {
-                $path = (string) $file->store(DocumentRules::DIRECTORY, DocumentRules::DISK);
-                $stored[] = $path;
+            return DB::transaction(function () use ($files, $type, $acquisition, &$stored): Collection {
+                // L'état est relu sous verrou : une validation survenue entre-temps ferme l'ajout.
+                $locked = Acquisition::query()->whereKey($acquisition->getKey())->lockForUpdate()->firstOrFail();
 
-                $document = Document::query()->create([
-                    'document_type_id' => $type->getKey(),
-                    'original_name' => $file->getClientOriginalName(),
-                    'path' => $path,
-                    'mime' => $file->getMimeType() ?? 'application/octet-stream',
-                    'size' => (int) $file->getSize(),
-                    'uploaded_by' => auth()->id(),
-                ]);
+                if (! $locked->isDraft()) {
+                    throw new DomainException('Une acquisition validée n\'est plus modifiable : aucun justificatif ne peut y être ajouté.');
+                }
 
-                $document->acquisitions()->attach($acquisition->getKey());
+                return $files->map(function (UploadedFile $file) use ($type, $acquisition, &$stored): Document {
+                    $path = (string) $file->store(DocumentRules::DIRECTORY, DocumentRules::DISK);
+                    $stored[] = $path;
 
-                activity('documents')
-                    ->performedOn($acquisition)
-                    ->event('document_attached')
-                    ->withProperties(['document' => $document->original_name, 'type' => $type->label])
-                    ->log('Ajout d\'un justificatif');
+                    $document = Document::query()->create([
+                        'document_type_id' => $type->getKey(),
+                        'original_name' => $file->getClientOriginalName(),
+                        'path' => $path,
+                        'mime' => $file->getMimeType() ?? 'application/octet-stream',
+                        'size' => (int) $file->getSize(),
+                        'uploaded_by' => auth()->id(),
+                    ]);
 
-                return $document;
-            }));
+                    $document->acquisitions()->attach($acquisition->getKey());
+
+                    activity('documents')
+                        ->performedOn($acquisition)
+                        ->event('document_attached')
+                        ->withProperties(['document' => $document->original_name, 'type' => $type->label])
+                        ->log('Ajout d\'un justificatif');
+
+                    return $document;
+                });
+            });
         } catch (Throwable $exception) {
             Storage::disk(DocumentRules::DISK)->delete($stored);
 
