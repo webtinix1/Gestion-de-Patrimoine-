@@ -93,13 +93,15 @@ Noms techniques en anglais, libellés d'interface en français. Toutes les table
 
 ### Amortissements
 
-**fiscal_years** : `label` (2026), `starts_on`, `ends_on`, `status` (préparé, ouvert, clôturé), `closed_by`, `closed_at`.
+**fiscal_years** : `year` (2026, unique), `label` (2026), `starts_on`, `ends_on` (année civile, Q5), `status` (préparé, ouvert, clôturé), `closed_by`, `closed_at`, `closing_notes` (JSON : points d'attention confirmés, plans validés, anomalies ; RG-42). *(colonnes `year` et `closing_notes` ajoutées au lot 7)*
 
-**depreciation_schedules** : `asset_id`, `version`, `method`, `base_amount`, `duration_years`, `rate`, `residual_value`, `starts_on`, `ends_on`, `validated_by`, `validated_at`, `is_current` (un seul courant par bien).
+**depreciation_schedules** : `asset_id`, `version`, `method`, `original_value`, `base_amount`, `duration_years`, `rate` (taux du plan), `declining_coefficient` (null en linéaire), `residual_value`, `starts_on`, `ends_on`, `recalculated_from_year` (RG-37 : exercice d'effet du dernier changement de paramètre), `validated_by`, `validated_at`, `is_current` (un seul courant par bien). Index unique (`asset_id`, `version`). *(colonnes `original_value`, `declining_coefficient` et `recalculated_from_year` ajoutées au lot 7)*
 
-**depreciation_lines** : `depreciation_schedule_id`, `fiscal_year_id`, `days` (ou `months` pour le dégressif), `base`, `rate`, `amount`, `accumulated`, `net_book_value`, `is_locked` (exercice clôturé). Index unique (`schedule_id`, `fiscal_year_id`).
+**depreciation_lines** : `depreciation_schedule_id`, `fiscal_year` (l'année de l'exercice, reliée à `fiscal_years.year` quand l'exercice existe), `days` (ou `months` pour le dégressif), `base`, `rate` (null quand la dotation ne découle pas d'un taux annuel : durée restante recalculée, bascule du dégressif), `amount`, `accumulated`, `net_book_value`, `is_locked` (exercice clôturé ou antérieur, RG-36). Index unique (`depreciation_schedule_id`, `fiscal_year`). *(lot 7 : `fiscal_year` remplace `fiscal_year_id`, car un plan couvre des exercices pas encore créés et des années antérieures au premier exercice saisi)*
 
-**depreciation_parameter_changes** : `asset_id`, `parameter`, `old_value`, `new_value`, `reason`, `effective_fiscal_year_id`, `changed_by`, `changed_at`.
+**depreciation_parameter_changes** : `asset_id`, `batch_uuid` (changements enregistrés ensemble), `parameter`, `old_value`, `new_value`, `reason`, `effective_year`, `effective_fiscal_year_id` (null si l'exercice n'existe pas encore), `changed_by`, `changed_at`. *(colonnes `batch_uuid` et `effective_year` ajoutées au lot 7)*
+
+**assets** (lot 7) : `declining_coefficient` est renseigné au premier calcul d'un plan dégressif ; un changement ultérieur des paramètres généraux ne le modifie pas.
 
 ### Documents, étiquettes, paramètres
 
