@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Assets\Pages;
 
 use App\Filament\Resources\Assets\AssetResource;
+use App\Filament\Support\LabelActions;
 use App\Models\Asset;
 use Filament\Actions\EditAction;
 use Filament\Resources\Pages\ViewRecord;
@@ -24,6 +25,7 @@ class ViewAsset extends ViewRecord
     {
         return [
             EditAction::make(),
+            LabelActions::single(),
         ];
     }
 }

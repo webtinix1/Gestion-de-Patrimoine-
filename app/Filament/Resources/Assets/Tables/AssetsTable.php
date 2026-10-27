@@ -3,9 +3,11 @@
 namespace App\Filament\Resources\Assets\Tables;
 
 use App\Enums\AssetStatus;
+use App\Filament\Support\LabelActions;
 use App\Models\Asset;
 use App\Models\AssetCondition;
 use App\Support\Money;
+use Filament\Actions\BulkActionGroup;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DatePicker;
@@ -104,6 +106,9 @@ class AssetsTable
             ->recordActions([
                 ViewAction::make(),
                 EditAction::make(),
+            ])
+            ->toolbarActions([
+                BulkActionGroup::make([LabelActions::bulk()]),
             ]);
     }
 }
