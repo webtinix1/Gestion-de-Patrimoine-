@@ -22,6 +22,16 @@ class CreateFiscalYear
             throw ValidationException::withMessages(['year' => 'L\'exercice '.$year.' existe déjà.']);
         }
 
+        // RG-36 : un exercice ne s'insère pas avant les exercices existants, sinon des années déjà
+        // closes ou antérieures redeviendraient recalculables.
+        $last = FiscalYear::query()->max('year');
+
+        if ($last !== null && $year < (int) $last) {
+            throw ValidationException::withMessages([
+                'year' => 'Un nouvel exercice se crée après le dernier exercice existant ('.$last.') : les exercices passés ne se rouvrent pas.',
+            ]);
+        }
+
         if ($status === FiscalYearStatus::Closed) {
             throw ValidationException::withMessages(['year' => 'Un exercice se clôture, il ne se crée pas clôturé.']);
         }

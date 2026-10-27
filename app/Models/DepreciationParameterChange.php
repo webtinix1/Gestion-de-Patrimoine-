@@ -38,6 +38,7 @@ class DepreciationParameterChange extends Model
         'duration_years' => 'Durée (années)',
         'in_service_on' => 'Date de mise en service',
         'depreciation_method' => 'Méthode',
+        'declining_coefficient' => 'Coefficient dégressif',
     ];
 
     protected static function booted(): void

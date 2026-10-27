@@ -8,6 +8,8 @@ use App\Services\Depreciation\DepreciationLineResult;
 use App\Services\Depreciation\DepreciationPlan;
 use App\Services\Depreciation\FixedLine;
 use App\Services\Depreciation\ImpossibleDepreciationPlan;
+use App\Services\Depreciation\InvalidDepreciationInput;
+use App\Support\Money;
 use Carbon\CarbonImmutable;
 use InvalidArgumentException;
 
@@ -24,6 +26,11 @@ final class DepreciationCalculator
 
     // Taux et coefficients : 4 décimales, comme les colonnes decimal(7,4).
     private const int SCALE = 10000;
+
+    public const int MAX_AMOUNT = 999_999_999_999;
+
+    // Coefficient dégressif maximal (× 10 000) : le taux du plan tient dans decimal(7,4).
+    public const int MAX_COEFFICIENT = 100_000;
 
     public function calculate(DepreciationInput $input): DepreciationPlan
     {
@@ -43,7 +50,7 @@ final class DepreciationCalculator
             return new DepreciationPlan(max(0, $input->base()), $rate, $start, $end, []);
         }
 
-        if ($input->disposedOn !== null && $input->disposedOn->lt($start)) {
+        if ($input->disposedOn !== null && self::index360($input->disposedOn) < self::index360($start)) {
             return new DepreciationPlan($input->base(), $rate, $start, $end, $this->onlyFixed($input));
         }
 
@@ -60,6 +67,15 @@ final class DepreciationCalculator
     public static function dayOfYear360(CarbonImmutable $date): int
     {
         return ($date->month - 1) * 30 + min($date->day, 30);
+    }
+
+    /**
+     * Rang d'un jour sur l'échelle 30/360 (année × 360 + jour de l'année), pour comparer les dates
+     * comme le fait le prorata : le 31 et le 30 d'un mois sont le même jour.
+     */
+    public static function index360(CarbonImmutable $date): int
+    {
+        return $date->year * self::DAYS_PER_YEAR + self::dayOfYear360($date);
     }
 
     /**
@@ -108,27 +124,33 @@ final class DepreciationCalculator
     private function validate(DepreciationInput $input): void
     {
         if ($input->durationYears < 1 || $input->durationYears > 100) {
-            throw new InvalidArgumentException('La durée d\'amortissement doit être comprise entre 1 et 100 ans.');
+            throw new InvalidDepreciationInput('La durée d\'amortissement doit être comprise entre 1 et 100 ans.', 'duration_years');
         }
 
-        if ($input->originalValue < 0 || $input->residualValue < 0 || $input->residualValue > $input->originalValue) {
-            throw new InvalidArgumentException('La valeur résiduelle doit être comprise entre 0 et la valeur d\'origine.');
+        // Plafond du formulaire : garantit des calculs entiers sans débordement.
+        if ($input->originalValue < 0 || $input->originalValue > self::MAX_AMOUNT) {
+            throw new InvalidDepreciationInput('La valeur d\'origine doit être comprise entre 0 et 999 999 999 999 FCFA.', 'acquisition_cost');
+        }
+
+        if ($input->residualValue < 0 || $input->residualValue > $input->originalValue) {
+            throw new InvalidDepreciationInput('La valeur résiduelle doit être comprise entre 0 et la valeur d\'origine.', 'residual_value');
         }
 
         if ($input->method === DepreciationMethod::Declining) {
-            if ($input->decliningCoefficient === null || self::parseScaled($input->decliningCoefficient) <= 0) {
-                throw new InvalidArgumentException('La méthode dégressive exige un coefficient.');
+            if ($input->decliningCoefficient === null || self::parseScaled($input->decliningCoefficient) <= 0
+                || self::parseScaled($input->decliningCoefficient) > self::MAX_COEFFICIENT) {
+                throw new InvalidDepreciationInput('La méthode dégressive exige un coefficient compris entre 0 et 10.', 'depreciation_method');
             }
 
             // RG-35 : coefficients prévus à partir de 3 ans seulement.
             if ($input->durationYears < 3) {
-                throw new InvalidArgumentException('La méthode dégressive s\'applique à une durée d\'au moins 3 ans.');
+                throw new InvalidDepreciationInput('La méthode dégressive s\'applique à une durée d\'au moins 3 ans (RG-35).', 'duration_years');
             }
         }
 
         foreach ($input->fixedLines as $year => $line) {
             if ($line->year !== $year || $line->amount < 0) {
-                throw new InvalidArgumentException('Ligne figée incohérente pour l\'exercice '.$year.'.');
+                throw new InvalidDepreciationInput('La ligne figée de l\'exercice '.$year.' est incohérente : contactez l\'administrateur.', 'duration_years');
             }
         }
     }
@@ -160,9 +182,9 @@ final class DepreciationCalculator
      * @param  array<int, int>  $periods
      * @return array{0: array<int, int>, 1: bool}
      */
-    private function applyDisposal(array $periods, ?CarbonImmutable $disposedOn, CarbonImmutable $end, callable $unitsUntil): array
+    private function applyDisposal(array $periods, ?CarbonImmutable $disposedOn, bool $beforeEnd, callable $unitsUntil): array
     {
-        if ($disposedOn === null || $disposedOn->gte($end)) {
+        if ($disposedOn === null || ! $beforeEnd) {
             return [$periods, false];
         }
 
@@ -193,7 +215,7 @@ final class DepreciationCalculator
 
         // RG-36 : seuls les exercices postérieurs aux exercices figés se calculent.
         if ($computed !== [] && $input->fixedLines !== [] && max(array_keys($input->fixedLines)) > min($computed)) {
-            throw new InvalidArgumentException('Les exercices figés doivent précéder les exercices recalculés.');
+            throw new ImpossibleDepreciationPlan('Avec cette date de mise en service, il faudrait ajouter une dotation à un exercice clôturé ou antérieur, ce qui est interdit (RG-36).', 'in_service_on');
         }
 
         return $years;
@@ -213,7 +235,11 @@ final class DepreciationCalculator
         $normal = $this->periods($start->year, self::DAYS_PER_YEAR - $startIndex + 1, $totalDays, self::DAYS_PER_YEAR);
         $endYear = (int) array_key_last($normal);
 
-        [$periods, $cut] = $this->applyDisposal($normal, $input->disposedOn, $end, fn (CarbonImmutable $date): int => self::dayOfYear360($date)
+        // RG-39 : sortie comparée à la fin du plan sur l'échelle 30/360 (fin = début + durée × 360 − 1).
+        $beforeEnd = $input->disposedOn !== null
+            && self::index360($input->disposedOn) < self::index360($start) + $totalDays - 1;
+
+        [$periods, $cut] = $this->applyDisposal($normal, $input->disposedOn, $beforeEnd, fn (CarbonImmutable $date): int => self::dayOfYear360($date)
             - ($date->year === $start->year ? $startIndex : 1) + 1);
 
         $anchor = $input->recalculatedFromYear !== null && $input->recalculatedFromYear > $start->year
@@ -232,7 +258,7 @@ final class DepreciationCalculator
                 $anchorDays = $totalDays - array_sum(array_filter($normal, fn (int $y): bool => $y < $anchor, ARRAY_FILTER_USE_KEY));
 
                 if ($anchorDays <= 0 && $anchorBase > 0) {
-                    throw new ImpossibleDepreciationPlan('Avec ces paramètres, l\'amortissement se terminerait avant l\'exercice '.$anchor.' alors qu\'il reste '.$anchorBase.' FCFA à amortir.');
+                    throw new ImpossibleDepreciationPlan('Avec cette durée, l\'amortissement se terminerait avant l\'exercice '.$anchor.' alors qu\'il reste '.Money::format($anchorBase, withCurrency: true).' à amortir : choisissez une durée plus longue.', 'duration_years');
                 }
             }
 
@@ -249,7 +275,8 @@ final class DepreciationCalculator
                 if ($anchorBase !== null && $anchorDays !== null && $anchorDays > 0) {
                     $amount = self::roundHalfUp($anchorBase * $days, $anchorDays);
                     $lineBase = $anchorBase;
-                    $lineRate = self::rate(self::DAYS_PER_YEAR, $anchorDays);
+                    // Taux annuel sans sens comptable sur une durée restante recalculée (il peut dépasser 100 %) : non renseigné.
+                    $lineRate = null;
                 } else {
                     // RG-32 : dotation = base × jours / 360 / durée.
                     $amount = self::roundHalfUp($base * $days, $totalDays);
@@ -289,7 +316,11 @@ final class DepreciationCalculator
         $normal = $this->periods($start->year, self::MONTHS_PER_YEAR - $start->month + 1, $totalMonths, self::MONTHS_PER_YEAR);
         $endYear = (int) array_key_last($normal);
 
-        [$periods, $cut] = $this->applyDisposal($normal, $input->disposedOn, $end, fn (CarbonImmutable $date): int => $date->month
+        // Sortie dans le dernier mois du plan : l'exercice est complet.
+        $beforeEnd = $input->disposedOn !== null
+            && $input->disposedOn->year * 12 + $input->disposedOn->month < $start->year * 12 + $start->month + $totalMonths - 1;
+
+        [$periods, $cut] = $this->applyDisposal($normal, $input->disposedOn, $beforeEnd, fn (CarbonImmutable $date): int => $date->month
             - ($date->year === $start->year ? $start->month : 1) + 1);
 
         $decliningRate = self::rate($coefficient, self::SCALE * $duration);
@@ -313,7 +344,8 @@ final class DepreciationCalculator
 
                 if ($linear > $declining) {
                     $amount = $linear;
-                    $lineRate = self::rate(self::MONTHS_PER_YEAR, max(1, $remainingMonths));
+                    // Annuité linéaire sur la durée restante : pas de taux annuel propre (jusqu'à 1 200 % le dernier mois).
+                    $lineRate = null;
                 }
 
                 // RG-33 : la dernière dotation absorbe le reste.
@@ -333,10 +365,10 @@ final class DepreciationCalculator
         return $lines;
     }
 
-    private function line(DepreciationInput $input, int $year, ?int $days, ?int $months, int $base, string $rate, int $amount, int $accumulated, bool $fixed): DepreciationLineResult
+    private function line(DepreciationInput $input, int $year, ?int $days, ?int $months, int $base, ?string $rate, int $amount, int $accumulated, bool $fixed): DepreciationLineResult
     {
         if ($accumulated > $input->base()) {
-            throw new ImpossibleDepreciationPlan('Le cumul des exercices figés ('.$accumulated.' FCFA) dépasse la nouvelle base amortissable ('.$input->base().' FCFA).');
+            throw new ImpossibleDepreciationPlan('Les dotations des exercices clôturés atteignent déjà '.Money::format($accumulated, withCurrency: true).', plus que la nouvelle base amortissable ('.Money::format($input->base(), withCurrency: true).') : elles ne peuvent pas être reprises (RG-36).', 'acquisition_cost');
         }
 
         return new DepreciationLineResult(
@@ -356,7 +388,7 @@ final class DepreciationCalculator
     {
         // RG-33 : sans sortie, le cumul final égale exactement la base amortissable.
         if (! $cut && $accumulated !== $input->base()) {
-            throw new ImpossibleDepreciationPlan('Avec ces paramètres, le plan ne peut pas amortir exactement la base sans modifier un exercice figé.');
+            throw new ImpossibleDepreciationPlan('Avec ces paramètres, la base ne peut pas être amortie entièrement sans modifier un exercice clôturé : allongez la durée.', 'duration_years');
         }
     }
 

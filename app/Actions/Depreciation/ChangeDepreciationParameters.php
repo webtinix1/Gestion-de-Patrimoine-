@@ -3,17 +3,21 @@
 namespace App\Actions\Depreciation;
 
 use App\Enums\DepreciationMethod;
+use App\Enums\PermissionAbility;
 use App\Exceptions\ConcurrentModificationException;
 use App\Models\Asset;
 use App\Models\AssetCategory;
+use App\Models\DepreciationLine;
 use App\Models\DepreciationParameterChange;
 use App\Models\DepreciationSchedule;
 use App\Models\User;
 use App\Services\DepreciabilityResolver;
 use App\Services\DepreciationRules;
 use App\Services\FiscalYearCalendar;
+use App\Support\DepreciationAuthority;
 use Carbon\CarbonImmutable;
 use DateTimeInterface;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -44,6 +48,13 @@ class ChangeDepreciationParameters
      */
     public function __invoke(Asset $asset, array $changes, string $reason, ?int $expectedVersion = null): ?DepreciationSchedule
     {
+        $user = auth()->user();
+
+        // RG-83 : règle appliquée aussi dans l'action, en plus de la policy de l'écran.
+        if (! $user instanceof User || ! DepreciationAuthority::canManage($user, PermissionAbility::Update)) {
+            throw new AuthorizationException('Seuls l\'administrateur et le comptable modifient les paramètres d\'amortissement (RG-83).');
+        }
+
         $reason = trim($reason);
 
         if (mb_strlen($reason) < 3) {
@@ -68,7 +79,7 @@ class ChangeDepreciationParameters
                 ]);
             }
 
-            $values = $this->normalize($current, $changes);
+            $values = $this->normalize($current, $changes, $calendar);
             $old = [];
             $new = [];
 
@@ -125,7 +136,7 @@ class ChangeDepreciationParameters
      * @param  array<string, mixed>  $changes
      * @return array<string, mixed>
      */
-    private function normalize(Asset $asset, array $changes): array
+    private function normalize(Asset $asset, array $changes, FiscalYearCalendar $calendar): array
     {
         $errors = [];
         $has = fn (string $parameter): bool => array_key_exists($parameter, $changes);
@@ -152,6 +163,12 @@ class ChangeDepreciationParameters
             $errors['in_service_on'] = 'La date de mise en service est obligatoire.';
         } elseif ($inService < $asset->acquired_on->toDateString()) {
             $errors['in_service_on'] = 'La mise en service ne peut pas précéder l\'acquisition.';
+        } elseif ($inService !== $asset->in_service_on?->toDateString()) {
+            $message = $this->frozenStartError($asset, (int) substr($inService, 0, 4), $calendar);
+
+            if ($message !== null) {
+                $errors['in_service_on'] = $message;
+            }
         }
 
         if ($method === null) {
@@ -175,13 +192,55 @@ class ChangeDepreciationParameters
             throw ValidationException::withMessages($errors);
         }
 
-        return array_intersect_key([
+        $values = array_intersect_key([
             'acquisition_cost' => $cost,
             'residual_value' => $residual,
             'duration_years' => $duration,
             'in_service_on' => $inService,
             'depreciation_method' => $method,
         ], array_flip(array_keys(array_intersect_key($changes, array_flip(self::PARAMETERS)))));
+
+        // RG-35 : le coefficient dépend de la durée ; il est fixé sur la fiche quand la méthode ou la
+        // durée change, puis ne bouge plus si les paramètres généraux changent.
+        if ($method === DepreciationMethod::Declining && $duration !== null
+            && ($method !== $asset->depreciation_method || $duration !== (int) $asset->duration_years || $asset->getAttribute('declining_coefficient') === null)) {
+            $values['declining_coefficient'] = $this->rules->coefficientFor($duration);
+        } elseif ($method !== DepreciationMethod::Declining && $asset->getAttribute('declining_coefficient') !== null) {
+            $values['declining_coefficient'] = null;
+        }
+
+        return $values;
+    }
+
+    /**
+     * RG-36 : une nouvelle date de mise en service ne doit ni effacer une dotation figée ni en
+     * créer une dans un exercice clôturé ou antérieur.
+     */
+    private function frozenStartError(Asset $asset, int $startYear, FiscalYearCalendar $calendar): ?string
+    {
+        $first = $calendar->firstRecalculableYear();
+        $schedule = $this->sync->currentSchedule($asset);
+
+        // Sans plan existant, la date se traite comme à la création (Q9.1).
+        if ($first === null || $schedule === null) {
+            return null;
+        }
+
+        $fixed = $schedule->lines
+            ->filter(fn (DepreciationLine $line): bool => $line->is_locked || $line->fiscal_year < $first);
+        $withAmount = $fixed->filter(fn (DepreciationLine $line): bool => $line->amount > 0);
+
+        if ($withAmount->isNotEmpty() && $startYear > (int) $withAmount->min('fiscal_year')) {
+            return 'Le bien porte déjà une dotation figée en '.$withAmount->min('fiscal_year').' (exercice clôturé) : sa mise en service ne peut pas être repoussée après cet exercice.';
+        }
+
+        for ($year = $startYear; $year < $first; $year++) {
+            if (! $fixed->contains(fn (DepreciationLine $line): bool => $line->fiscal_year === $year)) {
+                return 'Avec cette date, une dotation serait ajoutée à l\'exercice '.$year.', déjà clôturé ou antérieur : c\'est interdit (RG-36).';
+            }
+        }
+
+        return null;
     }
 
     private static function integer(mixed $value): ?int

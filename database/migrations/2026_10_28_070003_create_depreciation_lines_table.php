@@ -16,7 +16,8 @@ return new class extends Migration
             $table->unsignedSmallInteger('days')->nullable();
             $table->unsignedTinyInteger('months')->nullable();
             $table->bigInteger('base');
-            $table->decimal('rate', 7, 4);
+            // Null quand la dotation ne découle pas d'un taux annuel (durée restante recalculée, bascule du dégressif).
+            $table->decimal('rate', 7, 4)->nullable();
             $table->bigInteger('amount');
             $table->bigInteger('accumulated');
             $table->bigInteger('net_book_value');

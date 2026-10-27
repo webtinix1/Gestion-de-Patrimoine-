@@ -17,6 +17,7 @@ class FiscalYearAttentionPoints
     {
         return [
             app(DepreciationPlansCheck::class),
+            app(PlanAnomaliesCheck::class),
             // Remplacés par une vraie vérification aux lots 10 (sorties) et 9 (inventaires).
             PendingModuleCheck::disposals(),
             PendingModuleCheck::inventories(),

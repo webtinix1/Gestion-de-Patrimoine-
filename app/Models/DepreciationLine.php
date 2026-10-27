@@ -16,7 +16,7 @@ use LogicException;
  * @property int|null $days
  * @property int|null $months
  * @property int $base
- * @property string $rate
+ * @property string|null $rate
  * @property int $amount
  * @property int $accumulated
  * @property int $net_book_value

@@ -2,9 +2,12 @@
 
 namespace App\Actions\Depreciation;
 
+use App\Enums\PermissionAbility;
 use App\Models\Asset;
 use App\Models\DepreciationSchedule;
 use App\Models\User;
+use App\Support\DepreciationAuthority;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -16,6 +19,11 @@ class ValidateDepreciationSchedule
 {
     public function __invoke(DepreciationSchedule $schedule, User $user): DepreciationSchedule
     {
+        // RG-83 : règle appliquée aussi dans l'action, en plus de la policy de l'écran.
+        if (! DepreciationAuthority::canManage($user, PermissionAbility::Validate)) {
+            throw new AuthorizationException('Seuls l\'administrateur et le comptable valident les plans d\'amortissement (RG-83).');
+        }
+
         return DB::transaction(function () use ($schedule, $user): DepreciationSchedule {
             $current = DepreciationSchedule::query()->lockForUpdate()->findOrFail($schedule->getKey());
 

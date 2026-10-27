@@ -11,6 +11,7 @@ use App\Services\Depreciation\DepreciationLineResult;
 use App\Services\Depreciation\DepreciationPlan;
 use App\Services\Depreciation\FixedLine;
 use App\Services\Depreciation\ImpossibleDepreciationPlan;
+use App\Services\Depreciation\InvalidDepreciationInput;
 use App\Services\DepreciationCalculator;
 use App\Services\DepreciationRules;
 use App\Services\FiscalYearCalendar;
@@ -71,19 +72,13 @@ class SyncDepreciationSchedule
                 return SyncOutcome::Retired;
             }
 
+            $this->fixCoefficient($asset);
+
             $firstOpen = $calendar->firstRecalculableYear();
             /** @var Collection<int, DepreciationLine> $existing */
             $existing = $current === null ? collect() : $current->lines->keyBy('fiscal_year');
-            $fixed = [];
-
-            foreach ($existing as $year => $line) {
-                if ($line->is_locked || ($firstOpen !== null && $year < $firstOpen)) {
-                    $fixed[$year] = new FixedLine($year, $line->amount, days: $line->days, months: $line->months);
-                }
-            }
-
             $anchor = $anchorYear ?? $current?->recalculated_from_year;
-            $plan = $this->calculate($asset, $fixed, $anchor);
+            $plan = $this->calculate($asset, $this->fixedLines($existing, $firstOpen), $anchor);
             $header = $this->header($asset, $plan, $anchor);
             $lines = $this->targetLines($plan, $existing, $firstOpen);
 
@@ -132,6 +127,70 @@ class SyncDepreciationSchedule
         $this($asset);
     }
 
+    /**
+     * RG-42 : vérifie, sans rien écrire, que le plan du bien se recalcule. Renvoie le problème en
+     * clair, ou null.
+     */
+    public function anomaly(Asset $asset, FiscalYearCalendar $calendar): ?string
+    {
+        $current = $this->currentSchedule($asset);
+
+        if (! self::isEligible($asset)) {
+            return $current !== null && $current->isEngaged()
+                ? 'plan engagé conservé alors que le bien n\'est plus amortissable'
+                : null;
+        }
+
+        try {
+            $this->calculate($asset, $this->fixedLines($current === null ? collect() : $current->lines->keyBy('fiscal_year'), $calendar->firstRecalculableYear()), $current?->recalculated_from_year);
+        } catch (ValidationException $exception) {
+            return collect($exception->errors())->flatten()->implode(' ');
+        }
+
+        return null;
+    }
+
+    /**
+     * RG-36 : lignes figées (exercice clôturé ou antérieur au premier exercice recalculable).
+     *
+     * @param  Collection<int, DepreciationLine>  $existing
+     * @return array<int, FixedLine>
+     */
+    private function fixedLines(Collection $existing, ?int $firstOpen): array
+    {
+        $fixed = [];
+
+        foreach ($existing as $year => $line) {
+            if ($line->is_locked || ($firstOpen !== null && $year < $firstOpen)) {
+                $fixed[$year] = new FixedLine($year, $line->amount, days: $line->days, months: $line->months);
+            }
+        }
+
+        return $fixed;
+    }
+
+    /**
+     * RG-35 : le coefficient dégressif est écrit sur la fiche au premier calcul ; un changement
+     * ultérieur des paramètres généraux ne concerne que les nouveaux biens.
+     */
+    private function fixCoefficient(Asset $asset): void
+    {
+        if ($asset->depreciation_method !== DepreciationMethod::Declining || $asset->getAttribute('declining_coefficient') !== null) {
+            return;
+        }
+
+        $coefficient = $this->rules->coefficientFor((int) $asset->duration_years);
+
+        if ($coefficient === null) {
+            return;
+        }
+
+        // Écriture directe : ni nouvelle version de la fiche, ni entrée de journal pour une valeur dérivée.
+        Asset::query()->withoutGlobalScopes()->whereKey($asset->getKey())->update(['declining_coefficient' => $coefficient]);
+        $asset->setAttribute('declining_coefficient', $coefficient);
+        $asset->syncOriginalAttribute('declining_coefficient');
+    }
+
     public static function isEligible(Asset $asset): bool
     {
         return $asset->is_depreciable
@@ -159,7 +218,8 @@ class SyncDepreciationSchedule
         $coefficient = null;
 
         if ($method === DepreciationMethod::Declining) {
-            $coefficient = $asset->getAttribute('declining_coefficient') ?? $this->rules->coefficientFor($duration);
+            $stored = $asset->getAttribute('declining_coefficient');
+            $coefficient = is_scalar($stored) ? (string) $stored : $this->rules->coefficientFor($duration);
 
             if ($coefficient === null) {
                 throw ValidationException::withMessages([
@@ -194,8 +254,13 @@ class SyncDepreciationSchedule
 
         try {
             return $this->calculator->calculate($this->input($asset, $fixed, $anchor));
-        } catch (ImpossibleDepreciationPlan|InvalidArgumentException $exception) {
-            throw ValidationException::withMessages(['data.duration_years' => $exception->getMessage()]);
+        } catch (ImpossibleDepreciationPlan|InvalidDepreciationInput $exception) {
+            // Message métier rattaché au paramètre en cause.
+            throw ValidationException::withMessages(['data.'.$exception->field => $exception->getMessage()]);
+        } catch (InvalidArgumentException) {
+            throw ValidationException::withMessages([
+                'data.duration_years' => 'Les paramètres d\'amortissement de ce bien sont incohérents : vérifiez la durée, le coefficient et les valeurs.',
+            ]);
         }
     }
 
@@ -271,7 +336,7 @@ class SyncDepreciationSchedule
             'days' => $line->days,
             'months' => $line->months,
             'base' => $line->base,
-            'rate' => (string) $line->rate,
+            'rate' => $line->rate === null ? null : (string) $line->rate,
             'amount' => $line->amount,
             'accumulated' => $line->accumulated,
             'net_book_value' => $line->net_book_value,

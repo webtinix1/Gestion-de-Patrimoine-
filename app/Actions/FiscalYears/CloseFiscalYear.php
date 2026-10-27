@@ -5,6 +5,7 @@ namespace App\Actions\FiscalYears;
 use App\Actions\Depreciation\RecalculateDepreciationSchedules;
 use App\Enums\FiscalYearStatus;
 use App\Enums\PermissionAbility;
+use App\Models\Asset;
 use App\Models\DepreciationLine;
 use App\Models\DepreciationSchedule;
 use App\Models\FiscalYear;
@@ -75,11 +76,17 @@ class CloseFiscalYear
                 ->where('is_locked', false)
                 ->update(['is_locked' => true, 'updated_at' => now()]);
 
-            $validated = DepreciationSchedule::query()
+            $toValidate = DepreciationSchedule::query()
                 ->where('is_current', true)
                 ->whereNull('validated_at')
-                ->whereHas('lines', fn ($query) => $query->where('fiscal_year', $current->year))
-                ->update(['validated_by' => $user->getKey(), 'validated_at' => now(), 'updated_at' => now()]);
+                ->whereHas('lines', fn ($query) => $query->where('fiscal_year', $current->year));
+            // RG-70 : la liste des biens dont le plan est validé par la clôture figure au journal.
+            $validatedNumbers = Asset::query()->withoutGlobalScopes()
+                ->whereIn('id', (clone $toValidate)->select('asset_id'))
+                ->orderBy('number')
+                ->pluck('number')
+                ->all();
+            $validated = $toValidate->update(['validated_by' => $user->getKey(), 'validated_at' => now(), 'updated_at' => now()]);
 
             $current->forceFill([
                 'status' => FiscalYearStatus::Closed,
@@ -109,6 +116,7 @@ class CloseFiscalYear
                 ->withProperties([
                     'old' => ['status' => FiscalYearStatus::Open->getLabel()],
                     'attributes' => ['status' => FiscalYearStatus::Closed->getLabel(), 'plans_validated' => $validated],
+                    'validated_assets' => $validatedNumbers,
                     'attention_points' => array_map(fn (AttentionPoint $point): string => $point->label, $points),
                 ])
                 ->log('Clôture de l\'exercice '.$current->year);

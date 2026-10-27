@@ -8,7 +8,10 @@ use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 
 /**
- * E32 : paramètres généraux des amortissements. Ne recalcule aucun plan existant.
+ * E32 : paramètres généraux des amortissements. Ils ne s'appliquent qu'aux nouveaux biens : aucun plan
+ * existant n'est recalculé, le seuil a déjà décidé du caractère amortissable de chaque fiche et le
+ * coefficient dégressif est écrit sur la fiche au premier calcul (RG-35). Désactiver le dégressif
+ * n'impose le linéaire qu'aux nouveaux biens.
  */
 class UpdateDepreciationSettings
 {
@@ -47,13 +50,13 @@ class UpdateDepreciationSettings
             try {
                 $scaled = DepreciationCalculator::parseScaled((string) ($data[$key] ?? ''));
 
-                if ($scaled <= 0) {
+                if ($scaled <= 0 || $scaled > DepreciationCalculator::MAX_COEFFICIENT) {
                     throw new InvalidArgumentException;
                 }
 
                 $values[$key] = rtrim(rtrim(DepreciationCalculator::formatScaled($scaled), '0'), '.');
             } catch (InvalidArgumentException) {
-                $errors[$key] = 'Coefficient invalide (exemple : 1,5).';
+                $errors[$key] = 'Coefficient invalide : un nombre entre 0 et 10 (exemple : 1,5).';
             }
         }
 

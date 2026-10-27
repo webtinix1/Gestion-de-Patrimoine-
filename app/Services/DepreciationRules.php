@@ -40,20 +40,24 @@ class DepreciationRules
     }
 
     /**
-     * Méthode d'un bien amortissable : celle demandée ou celle déjà portée par la fiche, sinon celle
-     * de la catégorie ; toujours linéaire tant que le dégressif est désactivé.
+     * Méthode d'un bien amortissable. Un bien existant garde la méthode portée par sa fiche, même si
+     * le dégressif a été désactivé depuis : seule l'action « Modifier les paramètres » la change.
+     * Un nouveau bien prend la méthode demandée ou celle de la catégorie, linéaire si le dégressif
+     * est désactivé (RG-35).
      */
     public function methodFor(AssetCategory $category, mixed $requested = null, ?int $assetId = null): DepreciationMethod
     {
+        $stored = $assetId === null ? null : Asset::query()->withoutGlobalScopes()->whereKey($assetId)->first()?->depreciation_method;
+
+        if ($stored !== null) {
+            return $stored;
+        }
+
         if (! $this->decliningEnabled()) {
             return DepreciationMethod::Linear;
         }
 
-        $method = $requested instanceof DepreciationMethod ? $requested : DepreciationMethod::tryFrom((string) $requested);
-
-        if ($method === null && $assetId !== null) {
-            $method = Asset::query()->withoutGlobalScopes()->whereKey($assetId)->first()?->depreciation_method;
-        }
+        $method = $requested instanceof DepreciationMethod ? $requested : DepreciationMethod::tryFrom(is_string($requested) ? $requested : '');
 
         return $method ?? $category->default_method;
     }

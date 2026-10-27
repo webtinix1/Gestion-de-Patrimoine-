@@ -56,7 +56,7 @@ class DepreciationPlanReport
                 'units' => $line->months ?? $line->days,
                 'original_value' => $schedule->original_value,
                 'base' => $line->base,
-                'rate' => self::percent((string) $line->rate),
+                'rate' => $line->rate === null ? '—' : self::percent((string) $line->rate),
                 'amount' => $line->amount,
                 'accumulated' => $line->accumulated,
                 'net_book_value' => $line->net_book_value,

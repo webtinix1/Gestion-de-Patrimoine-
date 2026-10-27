@@ -29,23 +29,30 @@ class FiscalYearCalendar
         return $this->all()->get($year);
     }
 
+    public function lastClosedYear(): ?int
+    {
+        $closed = $this->all()->filter(fn (FiscalYear $year): bool => $year->isClosed());
+
+        return $closed->isEmpty() ? null : (int) $closed->keys()->max();
+    }
+
     /**
-     * RG-36, RG-37 : premier exercice que l'on peut recalculer (premier exercice non clôturé).
-     * Les exercices antérieurs sont figés. Sans aucun exercice, rien n'est figé (null).
+     * RG-36, RG-37 : premier exercice que l'on peut recalculer. Tout exercice jusqu'au dernier
+     * exercice clôturé inclus est figé, même si un exercice antérieur non clôturé existe.
+     * Sans exercice clôturé : le premier exercice existant (les années d'avant sont antérieures).
+     * Sans aucun exercice, rien n'est figé (null).
      */
     public function firstRecalculableYear(): ?int
     {
-        $years = $this->all();
+        $lastClosed = $this->lastClosedYear();
 
-        $notClosed = $years->first(fn (FiscalYear $year): bool => ! $year->isClosed());
-
-        if ($notClosed instanceof FiscalYear) {
-            return $notClosed->year;
+        if ($lastClosed !== null) {
+            return $lastClosed + 1;
         }
 
-        $lastClosed = $years->last();
+        $first = $this->all()->first();
 
-        return $lastClosed instanceof FiscalYear ? $lastClosed->year + 1 : null;
+        return $first instanceof FiscalYear ? $first->year : null;
     }
 
     /**
