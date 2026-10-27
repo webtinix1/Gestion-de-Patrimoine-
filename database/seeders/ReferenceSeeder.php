@@ -90,5 +90,7 @@ class ReferenceSeeder extends Seeder
         foreach (self::DOCUMENT_TYPES as $label) {
             DocumentType::query()->firstOrCreate(['label' => $label]);
         }
+
+        $this->call(RolesSeeder::class);
     }
 }

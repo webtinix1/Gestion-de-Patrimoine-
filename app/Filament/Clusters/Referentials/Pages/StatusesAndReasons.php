@@ -30,6 +30,11 @@ class StatusesAndReasons extends Page
 
     protected string $view = 'filament.clusters.referentials.pages.statuses-and-reasons';
 
+    public static function canAccess(): bool
+    {
+        return ReferentialsCluster::canAccess();
+    }
+
     /**
      * @return array<string, mixed>
      */

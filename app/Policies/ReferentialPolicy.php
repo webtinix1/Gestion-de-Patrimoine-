@@ -2,20 +2,23 @@
 
 namespace App\Policies;
 
+use App\Enums\PermissionAbility;
+use App\Enums\PermissionModule;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Règles communes aux référentiels. Les droits fins par rôle arrivent au lot 2
- * (RG-80) : en attendant, tout compte actif gère les référentiels.
+ * Règles communes aux référentiels : module « Structure » de la matrice des droits (RG-80).
  *
  * @template TModel of Model
  */
 abstract class ReferentialPolicy
 {
+    protected PermissionModule $module = PermissionModule::Structure;
+
     public function viewAny(User $user): bool
     {
-        return $user->is_active;
+        return $this->allows($user, PermissionAbility::View);
     }
 
     /**
@@ -23,12 +26,12 @@ abstract class ReferentialPolicy
      */
     public function view(User $user, Model $model): bool
     {
-        return $user->is_active;
+        return $this->allows($user, PermissionAbility::View);
     }
 
     public function create(User $user): bool
     {
-        return $user->is_active;
+        return $this->allows($user, PermissionAbility::Create);
     }
 
     /**
@@ -36,7 +39,7 @@ abstract class ReferentialPolicy
      */
     public function update(User $user, Model $model): bool
     {
-        return $user->is_active;
+        return $this->allows($user, PermissionAbility::Update);
     }
 
     /**
@@ -46,7 +49,9 @@ abstract class ReferentialPolicy
      */
     public function delete(User $user, Model $model): bool
     {
-        return $user->is_active && method_exists($model, 'isInUse') && ! $model->isInUse();
+        return $this->allows($user, PermissionAbility::Delete)
+            && method_exists($model, 'isInUse')
+            && ! $model->isInUse();
     }
 
     public function deleteAny(User $user): bool
@@ -68,5 +73,18 @@ abstract class ReferentialPolicy
     public function forceDelete(User $user, Model $model): bool
     {
         return false;
+    }
+
+    /**
+     * Réordonner une liste (états) revient à la modifier.
+     */
+    public function reorder(User $user): bool
+    {
+        return $this->allows($user, PermissionAbility::Update);
+    }
+
+    protected function allows(User $user, PermissionAbility $ability): bool
+    {
+        return $user->is_active && $user->can($this->module->permission($ability));
     }
 }
