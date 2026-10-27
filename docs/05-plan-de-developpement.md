@@ -8,10 +8,10 @@ Treize lots, à faire dans l'ordre : chaque lot s'appuie sur les précédents. O
 
 Projet Laravel 13 + Filament 5, panneau `/admin`, langue française, fuseau `Africa/Brazzaville`, thème (couleurs, polices locales Archivo et Martian Mono), Pest, Pint, Larastan, seeders de base.
 
-- [ ] L'application démarre sans aucun appel réseau externe (vérifié avec le Wi-Fi coupé).
-- [ ] Connexion par identifiant (pas par e-mail).
-- [ ] Interface entièrement en français, y compris les messages de validation.
-- [ ] Le thème reprend couleurs et polices de `docs/04`.
+- [ ] L'application démarre sans aucun appel réseau externe (vérifié avec le Wi-Fi coupé). *Vérifié par les tests `HorsLigneTest` et par l'inspection des requêtes du navigateur (toutes vers localhost) ; reste l'essai Wi-Fi coupé, à faire par un humain.*
+- [x] Connexion par identifiant (pas par e-mail).
+- [x] Interface entièrement en français, y compris les messages de validation.
+- [x] Le thème reprend couleurs et polices de `docs/04`.
 
 ## Lot 1. Structure et référentiels (1 j) · E34 à E37 · RG-11
 
