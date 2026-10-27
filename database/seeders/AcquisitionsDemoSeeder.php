@@ -29,7 +29,7 @@ class AcquisitionsDemoSeeder extends Seeder
      */
     private const array ACQUISITIONS = [
         [
-            'reference' => 'ACQ-2026-039', 'date' => '2026-10-26', 'supplier' => 'Informatique Plus Brazzaville', 'invoice' => 'FAC-2026-1003',
+            'reference' => 'ACQ-2026-039', 'date' => '2026-10-26', 'supplier' => 'Informatique Plus', 'invoice' => 'FAC-2026-1003',
             'department' => 'INF', 'site' => 'SIE', 'funding' => FundingSource::OwnFunds, 'status' => AcquisitionStatus::Draft,
             'lines' => [
                 ['Ordinateur portable HP ProBook 450', 'INF', 3, 600000, true],
@@ -88,7 +88,7 @@ class AcquisitionsDemoSeeder extends Seeder
 
                 $acquisition->fill([
                     'acquired_on' => $row['date'],
-                    'supplier_id' => Supplier::query()->firstOrCreate(['name' => $row['supplier']], ['is_active' => true])->id,
+                    'supplier_id' => Supplier::query()->where('name', $row['supplier'])->value('id'),
                     'invoice_reference' => $row['invoice'],
                     'funding_source' => $row['funding'],
                     'site_id' => $site->id,
