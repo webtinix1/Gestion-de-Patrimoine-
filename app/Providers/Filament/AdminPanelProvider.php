@@ -3,8 +3,10 @@
 namespace App\Providers\Filament;
 
 use App\Filament\AvatarProviders\InitialsAvatarProvider;
+use App\Filament\Pages\Auth\EditProfile;
 use App\Filament\Pages\Auth\Login;
 use App\Filament\Theme;
+use App\Http\Middleware\EnsurePasswordIsChanged;
 use Filament\FontProviders\LocalFontProvider;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
@@ -39,6 +41,7 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             ->login(Login::class)
+            ->profile(EditProfile::class, isSimple: false)
             ->brandName('Patrimoine')
             ->colors(Theme::colors())
             ->font('Archivo', url: asset('fonts/fonts.css'), provider: LocalFontProvider::class)
@@ -69,6 +72,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->authMiddleware([
                 Authenticate::class,
+                EnsurePasswordIsChanged::class,
             ]);
     }
 }
