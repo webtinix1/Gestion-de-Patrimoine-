@@ -4,9 +4,12 @@ namespace Database\Seeders;
 
 use App\Enums\Depreciability;
 use App\Enums\DepreciationMethod;
+use App\Enums\LabelCodeType;
+use App\Enums\LabelSheetLayout;
 use App\Models\AssetCategory;
 use App\Models\AssetCondition;
 use App\Models\DocumentType;
+use App\Models\LabelTemplate;
 use Illuminate\Database\Seeder;
 
 /**
@@ -64,6 +67,18 @@ class ReferenceSeeder extends Seeder
         'Photo',
     ];
 
+    /**
+     * RG-96 : formats livrés (planche A4 3 × 8 de 70 × 37 mm, rouleau de 50 × 25 mm).
+     * Nom, largeur, hauteur, support, code, par défaut.
+     *
+     * @var list<array{0: string, 1: float, 2: float, 3: LabelSheetLayout, 4: LabelCodeType, 5: bool}>
+     */
+    public const array LABEL_TEMPLATES = [
+        ['Standard', 70.0, 37.0, LabelSheetLayout::A4ThreeByEight, LabelCodeType::Qr, true],
+        ['Rouleau Code 128', 50.0, 25.0, LabelSheetLayout::Roll, LabelCodeType::Code128, true],
+        ['Rouleau QR code', 50.0, 25.0, LabelSheetLayout::Roll, LabelCodeType::Qr, false],
+    ];
+
     public function run(): void
     {
         foreach (self::CONDITIONS as $sort => [$label, $color]) {
@@ -89,6 +104,21 @@ class ReferenceSeeder extends Seeder
 
         foreach (self::DOCUMENT_TYPES as $label) {
             DocumentType::query()->firstOrCreate(['label' => $label]);
+        }
+
+        foreach (self::LABEL_TEMPLATES as [$name, $width, $height, $layout, $code, $default]) {
+            LabelTemplate::query()->firstOrCreate(
+                ['name' => $name],
+                [
+                    'width_mm' => $width,
+                    'height_mm' => $height,
+                    'sheet_layout' => $layout,
+                    'code_type' => $code,
+                    'show_designation' => true,
+                    'show_department' => true,
+                    'is_default' => $default,
+                ],
+            );
         }
 
         $this->call(RolesSeeder::class);

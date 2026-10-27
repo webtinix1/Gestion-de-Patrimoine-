@@ -170,6 +170,13 @@ return [
         'phone' => 'téléphone',
         'job_title' => 'fonction',
         'remember' => 'se souvenir de moi',
+        'asset_numbers' => 'biens',
+        'template' => 'modèle',
+        'support' => 'support',
+        'cells' => 'cases',
+        'copies' => 'copies par bien',
+        'label_count' => 'étiquettes',
+        'reprint' => 'réimpression',
     ],
 
 ];

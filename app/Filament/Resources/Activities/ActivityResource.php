@@ -56,6 +56,7 @@ class ActivityResource extends Resource
         'roles' => 'Rôles et permissions',
         'biens' => 'Biens',
         'documents' => 'Documents',
+        'etiquettes' => 'Étiquettes',
     ];
 
     public static function canCreate(): bool
