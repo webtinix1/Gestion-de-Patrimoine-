@@ -34,3 +34,11 @@ Questions à faire trancher par l'Église avant ou pendant le développement. Po
 | Q21 | Qui valide les sorties du patrimoine (conseil, pasteur, administrateur) ? | Lot 10 | Texte libre |
 | Q22 | Motifs de transfert : la maquette (E37) montre une liste (réaffectation entre départements, changement de responsable, déménagement, régularisation d'inventaire), le modèle de données prévoit un texte libre (`movements.reason`). Liste fermée, liste paramétrable ou texte libre ? *(ajoutée au lot 1)* | Lot 6 | Texte libre avec ces quatre suggestions |
 | Q23 | Comptes SYSCOHADA par catégorie : la maquette ne donne que ceux du matériel informatique (2441 / 28441). Compléter les comptes d'immobilisation, d'amortissement et de dotation des neuf autres catégories (précise Q3). *(ajoutée au lot 1)* | Lot 7 | Vides, saisissables dans Catégories et référentiels |
+
+## Ajoutées au lot 4 (étiquettes)
+
+| N° | Question | Lot concerné | Hypothèse retenue |
+|---|---|---|---|
+| QL4-1 | Logo de l'Église sur l'étiquette : `label_templates.show_logo` existe (docs/03) mais aucun logo n'est paramétré tant que l'écran E41 n'existe pas. Faut-il l'imprimer, et en quelle taille ? | Lot 4 (puis E41) | Pas de logo imprimé ; la colonne est conservée et absente du formulaire |
+| QL4-2 | Planche réelle du client : marges et décalage d'impression. La grille 3 × 8 de 70 × 37 mm fait 296 mm de haut, elle est centrée sur l'A4 (0,5 mm en haut et en bas, 0 mm sur les côtés). Une planche du commerce ou une imprimante qui décale de quelques millimètres demandera-t-elle un réglage de décalage (X, Y) ? | Lot 4 | Aucun décalage ; à valider sur l'imprimante réelle (test humain du lot 4) |
+| QL4-3 | Un bien sorti du patrimoine peut-il être étiqueté ou réimprimé (par exemple pour un bien vendu ou donné) ? | Lot 4 | Non : les biens sortis ne sont pas proposés à l'impression |

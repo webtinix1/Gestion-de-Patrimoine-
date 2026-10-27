@@ -20,10 +20,42 @@ Tenu par Claude Code à la fin de chaque lot, relu par le développeur. Une entr
 | barryvdh/laravel-dompdf | 3.1.2 (dompdf 3.1.6) | 27/10/2026 |
 | maatwebsite/excel | 4.0.6 | 27/10/2026 |
 | Laravel (mise à jour au lot 3 par `composer require -W`) | 13.39.0 | 27/10/2026 |
+| endroid/qr-code (lot 4) | 6.0.9 (bacon/bacon-qr-code 3.1.1) | 28/10/2026 |
+| picqer/php-barcode-generator (lot 4) | 3.3.0 | 28/10/2026 |
 
 Compatibilité vérifiée sur Packagist le 27/10/2026 : Laravel 13 exige PHP ^8.3, Filament 5 PHP ^8.2 et Livewire ^4, Pint PHP ^8.3. Pest 5 (dernière version) exige PHP ^8.4 : on reste sur Pest 4 pour que le projet s'installe sur un poste en PHP 8.3, comme le prévoit `CLAUDE.md`.
 
 **Composer sur ce poste** : `composer require` et `composer dump-autoload` se figent pendant les scripts lancés après la génération de l'autoloader (aucune activité processeur). Contournement : `composer dump-autoload -n --no-scripts`, puis `php artisan package:discover` et `php artisan filament:upgrade`. Toujours rediriger l'entrée standard (`</dev/null`).
+
+## Lot 4 · Étiquettes · 28/10/2026
+
+- **Fait** :
+  - Modèles d'étiquettes (E10, RG-95, RG-96) : table `label_templates` conforme à `docs/03` (+ `created_by` / `updated_by`), ressource Filament « Modèles d'étiquettes » (groupe Patrimoine) avec **aperçu en direct** de l'étiquette (bien d'exemple PAT-000125, même mise en page que l'impression), contrôle que la grille tient sur l'A4 (colonnes × largeur ≤ 210 mm, lignes × hauteur ≤ 297 mm), dimensions proposées selon le support choisi. Un modèle par défaut par type de support (planche, rouleau), jamais un support sans défaut (`App\Actions\Labels\SaveLabelTemplate`). Livrés par `ReferenceSeeder` sans écraser l'existant : « Standard » (A4 3 × 8, 70 × 37 mm, QR code), « Rouleau Code 128 » (50 × 25 mm) et « Rouleau QR code » (50 × 25 mm).
+  - Codes (RG-95) : `App\Services\Labels\LabelCodeRenderer`. Le code ne contient que le numéro patrimonial, et refuse tout texte qui n'en est pas un (pas d'adresse, pas de désignation). Images générées en local : PNG à 600 dpi pour le PDF, SVG pour l'aperçu, en data URI. QR code correction d'erreur M ; Code 128 en barres d'un nombre entier de pixels (largeur choisie parmi 8 à 2 px à 600 dpi, zone de silence de 10 modules).
+  - Mise en page (mm) : `LabelComposer` (le même calcul sert à l'aperçu et au PDF) et `LabelSheetBuilder`. Sigle (ou texte d'en-tête du modèle), numéro et code toujours présents ; désignation, département, site et local selon le modèle, et seulement s'ils tiennent (les lignes de moindre priorité sautent, jamais le numéro). Planche : grille centrée sur l'A4, case de départ pour une planche entamée (la case de départ ne vaut que pour la première planche). Rouleau : une étiquette par page, page de 50 × 25 mm.
+  - PDF (RG-97) : `App\Actions\Labels\PrintLabels`, DomPDF, `enable_remote` désactivé, sous-ensemble de polices (PDF d'environ 40 Ko). Positionnement absolu en millimètres. Maximum 500 étiquettes par PDF (copies comprises, 50 copies par bien au plus).
+  - Page « Étiquettes » (E09), slug `etiquettes`, groupe Patrimoine sous « Recherche par code » : sélection par numéro (douchette : saisie + Entrée) ou par recherche, retrait un à un, support (planche ou rouleau), modèle, copies par bien, case de départ, aperçu (les deux premières planches), génération du PDF. **Contrat avec le lot 5** : `/admin/etiquettes?biens=12,13,14` présélectionne ces biens ; les identifiants invalides, en double, inconnus, hors périmètre ou sortis sont ignorés avec une notification.
+  - Action groupée « Imprimer les étiquettes » sur la liste des biens (renvoie vers la page avec la sélection, 500 biens au plus) et action « Imprimer l'étiquette » sur la fiche d'un bien (`App\Filament\Support\LabelActions`). Réimpression = imprimer de nouveau ; le journal le signale.
+  - Droits : module `labels` (consulter pour voir la page et les modèles, créer pour imprimer, modifier pour créer et modifier les modèles), `LabelTemplatePolicy`. Aucun modèle ne se supprime depuis l'application. Périmètre : seuls les biens du périmètre de l'utilisateur sont sélectionnables et imprimés (scope global de `Asset`), l'action `PrintLabels` les refiltre elle-même.
+  - Journal (RG-70) : une entrée par impression (`log_name` « etiquettes », événement `label_printed`, filtre « Étiquettes » dans le journal) avec biens, modèle, support, cases, copies, nombre d'étiquettes, réimpression, poste et utilisateur. Exemple : « Impression d'étiquettes : 8 étiquettes, Planche A4, cases 5 à 12 ».
+- **Paquets** (compatibles PHP 8.3+ et Laravel 13, vérifiés le 28/10/2026) : `endroid/qr-code` 6.0.9 (PHP ^8.2, tire `bacon/bacon-qr-code` 3.1.1 et `dasprid/enum` 1.0.7), `picqer/php-barcode-generator` 3.3.0 (PHP ^8.2). Extension `gd` de PHP requise pour les PNG (déjà active sur WAMP) ; licence LGPL-3.0 pour picqer, MIT pour endroid, BSD-2 pour bacon.
+- **Décisions** (et pourquoi) :
+  - Le « support » de la maquette (planche ou rouleau) filtre les modèles, et le type de code vient du modèle (pas de réglage de code à l'impression) : un modèle = une mise en page complète, ce qui évite qu'un rouleau 50 × 25 reçoive un code prévu pour 70 × 37.
+  - PNG dans le PDF et SVG dans l'aperçu : un PNG à 600 dpi reste net à l'impression et évite les traits blancs que l'anti-crénelage des lecteurs de PDF fait apparaître entre les modules d'un SVG.
+  - Police du numéro : DejaVu Sans Mono (incluse dans DomPDF), car Martian Mono n'est pas disponible côté PDF.
+  - Les biens sortis du patrimoine ne sont pas proposés à l'impression (QL4-3).
+  - Pas de logo imprimé tant que E41 n'existe pas (QL4-1).
+  - L'aperçu s'affiche à l'échelle d'écran (agrandi automatiquement) et non au 3:1 fixe de la maquette ; il suit exactement les millimètres du PDF.
+- **Écarts par rapport aux docs** : la colonne `show_logo` existe mais n'est pas dans le formulaire ; colonnes `created_by` / `updated_by` ajoutées. Pas de bouton « Imprimer une étiquette test » ni d'impression directe du navigateur : le PDF se télécharge puis s'imprime depuis le lecteur de PDF, à 100 %.
+- **Environnement** : `composer dump-autoload` se fige sur ce poste (le classmap optimisé ne se termine pas) ; l'autoload de `vendor/` a été complété à la main pour les quatre nouveaux espaces de noms. Sur un autre poste, un `composer install` normal suffit.
+- **Tests** (`tests/Feature/Etiquettes`) : contenu du code (numéro seul), positions et dimensions (case de départ, planche pleine, deuxième planche, rouleau, MediaBox du PDF A4 et 50 × 25 mm, position des images relue dans le PDF à 0,05 mm près), aperçu, droits, périmètre, journal.
+- **Questions ajoutées** : QL4-1 (logo), QL4-2 (marges et décalage de la planche réelle), QL4-3 (biens sortis). Q15 et Q16 restent avec leurs valeurs par défaut.
+- **À tester à la main** :
+  - Imprimer une planche A4 3 × 8 réelle (PDF à 100 %, sans « ajuster à la page ») : mesurer les étiquettes et le décalage éventuel sur la planche du client, tester la case de départ sur une planche entamée.
+  - Imprimer un rouleau 50 × 25 mm sur l'imprimante d'étiquettes (papier personnalisé 50 × 25, marges nulles).
+  - Lire les QR codes et les Code 128 avec la douchette du client (la douchette doit être 2D pour le QR code), puis saisir le code dans « Recherche par code ».
+  - Vérifier la lisibilité du plus petit texte (5,5 pt) à l'impression.
+
 
 ## Lot 3 · Biens · 27/10/2026
 
