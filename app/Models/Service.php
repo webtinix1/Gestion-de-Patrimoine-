@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasPerimeter;
 use App\Models\Concerns\IsReferential;
 use App\Models\Concerns\RecordsAuthors;
 use Database\Factories\ServiceFactory;
@@ -21,7 +22,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Service extends Model
 {
     /** @use HasFactory<ServiceFactory> */
-    use HasFactory, IsReferential, RecordsAuthors;
+    use HasFactory, HasPerimeter, IsReferential, RecordsAuthors;
 
     protected $attributes = ['is_active' => true];
 
@@ -44,5 +45,10 @@ class Service extends Model
     public function usageRelations(): array
     {
         return [];
+    }
+
+    public function perimeterColumns(): array
+    {
+        return ['department' => 'department_id'];
     }
 }

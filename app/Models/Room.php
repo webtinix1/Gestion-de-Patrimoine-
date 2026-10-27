@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\RoomType;
+use App\Models\Concerns\HasPerimeter;
 use App\Models\Concerns\IsReferential;
 use App\Models\Concerns\RecordsAuthors;
 use Database\Factories\RoomFactory;
@@ -24,7 +25,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Room extends Model
 {
     /** @use HasFactory<RoomFactory> */
-    use HasFactory, IsReferential, RecordsAuthors;
+    use HasFactory, HasPerimeter, IsReferential, RecordsAuthors;
 
     protected $attributes = ['is_active' => true, 'type' => 'other'];
 
@@ -58,5 +59,10 @@ class Room extends Model
     public function usageRelations(): array
     {
         return [];
+    }
+
+    public function perimeterColumns(): array
+    {
+        return ['site' => 'site_id', 'department' => 'department_id', 'department_nullable' => true];
     }
 }

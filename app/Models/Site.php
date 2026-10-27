@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasPerimeter;
 use App\Models\Concerns\IsReferential;
 use App\Models\Concerns\RecordsAuthors;
 use Database\Factories\SiteFactory;
@@ -25,7 +26,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Site extends Model
 {
     /** @use HasFactory<SiteFactory> */
-    use HasFactory, IsReferential, RecordsAuthors;
+    use HasFactory, HasPerimeter, IsReferential, RecordsAuthors;
 
     protected $attributes = ['is_active' => true];
 
@@ -64,5 +65,10 @@ class Site extends Model
     public function usageRelations(): array
     {
         return ['rooms', 'departments'];
+    }
+
+    public function perimeterColumns(): array
+    {
+        return ['site' => 'id'];
     }
 }
