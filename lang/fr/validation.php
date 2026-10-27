@@ -170,6 +170,13 @@ return [
         'phone' => 'téléphone',
         'job_title' => 'fonction',
         'remember' => 'se souvenir de moi',
+        'site_id' => 'site',
+        'department_id' => 'département',
+        'service_id' => 'service',
+        'room_id' => 'local',
+        'holder_id' => 'responsable',
+        'moved_on' => 'date',
+        'reason' => 'motif',
     ],
 
 ];

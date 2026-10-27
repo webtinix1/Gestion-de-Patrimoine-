@@ -6,6 +6,7 @@ use App\Exceptions\ConcurrentModificationException;
 use App\Models\Asset;
 use App\Models\AssetCategory;
 use App\Models\User;
+use App\Services\MovementRecorder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -14,7 +15,7 @@ use Illuminate\Validation\ValidationException;
  */
 class UpdateAsset
 {
-    public function __construct(private ApplyAssetRules $rules) {}
+    public function __construct(private ApplyAssetRules $rules, private MovementRecorder $movements) {}
 
     /**
      * @param  array<string, mixed>  $data
@@ -47,12 +48,20 @@ class UpdateAsset
             }
 
             $category = AssetCategory::query()->findOrFail($data['asset_category_id'] ?? $current->asset_category_id);
+            $before = $this->movements->assignmentOf($current);
             $current->update(($this->rules)(
                 [...$current->only(['acquisition_cost', 'depreciation_forced_off', 'status']), ...$data],
                 $category,
                 $current->status,
                 $current->id,
             ));
+
+            // RG-21 : un changement d'affectation fait depuis la fiche laisse aussi un mouvement.
+            $after = $this->movements->assignmentOf($current);
+
+            if ($this->movements->changedElements($before, $after) !== []) {
+                $this->movements->record($current, $before, $after, today(), 'Modification de la fiche');
+            }
 
             $asset->setRawAttributes($current->getAttributes(), sync: true);
 
