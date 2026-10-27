@@ -158,11 +158,18 @@ class Movement extends Model
      */
     public function assignmentLabel(string $side): string
     {
-        $parts = $side === 'from'
-            ? [$this->fromSite, $this->fromDepartment, $this->fromService, $this->fromRoom, $this->fromHolder]
-            : [$this->toSite, $this->toDepartment, $this->toService, $this->toRoom, $this->toHolder];
+        $prefix = $side === 'from' ? 'from' : 'to';
+        $names = [];
 
-        $names = array_values(array_filter(array_map(fn (?Model $part): ?string => $part?->getAttribute('name'), $parts)));
+        foreach (['site', 'department', 'service', 'room', 'holder'] as $element) {
+            if ($this->getAttribute($prefix.'_'.$element.'_id') === null) {
+                continue;
+            }
+
+            // Un élément que le périmètre de l'utilisateur ne laisse pas voir n'est pas affiché comme un vide.
+            $part = $this->getRelationValue($prefix.ucfirst($element));
+            $names[] = $part instanceof Model ? (string) $part->getAttribute('name') : '(hors de votre périmètre)';
+        }
 
         return $names === [] ? '—' : implode(' · ', $names);
     }

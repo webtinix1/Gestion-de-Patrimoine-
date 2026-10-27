@@ -148,6 +148,13 @@ class TransferAssets
             }
         }
 
+        // Q60 : prudence, on ne transfère pas un bien vers un site ou un département hors du périmètre de l'utilisateur.
+        foreach (['site_id' => Site::class, 'department_id' => Department::class] as $element => $class) {
+            if ($checks[$element] !== null && ! $class::query()->whereKey($target[$element])->exists()) {
+                $errors[$element] = 'Ce '.($element === 'site_id' ? 'site' : 'département').' est hors de votre périmètre : vous ne pouvez pas y transférer de bien.';
+            }
+        }
+
         // L'affectation reste cohérente : le service dépend du département, le local du site.
         if ($service !== null && (int) $service->department_id !== $target['department_id']) {
             $errors['service_id'] = 'Ce service n\'appartient pas au département choisi.';
@@ -246,19 +253,28 @@ class TransferAssets
      */
     private function log(Asset $asset, Movement $movement, array $from, array $to): void
     {
-        $movement->loadMissing(['fromSite', 'fromDepartment', 'fromService', 'fromRoom', 'fromHolder', 'toSite', 'toDepartment', 'toService', 'toRoom', 'toHolder']);
-
-        $names = fn (string $side): array => [
-            'site_id' => $movement->{$side.'Site'}?->name,
-            'department_id' => $movement->{$side.'Department'}?->name,
-            'service_id' => $movement->{$side.'Service'}?->name,
-            'room_id' => $movement->{$side.'Room'}?->name,
-            'holder_id' => $movement->{$side.'Holder'}?->name,
+        // Le journal garde les noms réels, quel que soit le périmètre de l'utilisateur : pas de scope global.
+        $classes = [
+            'site_id' => Site::class, 'department_id' => Department::class, 'service_id' => Service::class,
+            'room_id' => Room::class, 'holder_id' => Holder::class,
         ];
 
-        $changed = $this->recorder->changedElements($from, $to);
-        $old = array_intersect_key($names('from'), array_flip($changed));
-        $new = array_intersect_key($names('to'), array_flip($changed));
+        $names = function (array $assignment) use ($classes): array {
+            $names = [];
+
+            foreach ($classes as $element => $class) {
+                $id = $assignment[$element] ?? null;
+                /** @var Model|null $model */
+                $model = $id === null ? null : (new $class)->newQuery()->withoutGlobalScopes()->find($id);
+                $names[$element] = $model?->getAttribute('name');
+            }
+
+            return $names;
+        };
+
+        $changed = array_flip($this->recorder->changedElements($from, $to));
+        $old = array_intersect_key($names($from), $changed);
+        $new = array_intersect_key($names($to), $changed);
 
         activity('mouvements')
             ->performedOn($asset)

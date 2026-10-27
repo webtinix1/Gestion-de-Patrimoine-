@@ -29,6 +29,7 @@ use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\HtmlString;
 use Illuminate\Validation\ValidationException;
 
@@ -77,13 +78,25 @@ final class TransferAction
         return self::configure(BulkAction::make('transfer'))
             ->modalHeading('Transférer les biens sélectionnés')
             ->deselectRecordsAfterCompletion()
-            ->fillForm(['moved_on' => today()->toDateString(), 'reprint_label' => true])
+            // RG-86 : versions des fiches à l'ouverture de la fenêtre, comparées à l'enregistrement.
+            ->fillForm(fn (Collection $records): array => [
+                'moved_on' => today()->toDateString(),
+                'reprint_label' => true,
+                'versions' => $records->mapWithKeys(fn (Asset $asset): array => [$asset->getKey() => (int) $asset->lock_version])->all(),
+            ])
             ->schema([
+                Hidden::make('versions'),
                 Text::make('Tous les biens sélectionnés recevront cette nouvelle affectation : un mouvement est enregistré pour chaque bien.'),
                 ...self::fields(null),
             ])
             ->action(function (array $data, Collection $records, BulkAction $action): void {
-                self::run($records->all(), $data, [], $action);
+                $versions = [];
+
+                foreach ((array) ($data['versions'] ?? []) as $id => $version) {
+                    $versions[(int) $id] = (int) $version;
+                }
+
+                self::run($records->all(), $data, $versions, $action);
             });
     }
 
@@ -187,9 +200,9 @@ final class TransferAction
                     ->visible(fn (Get $get): bool => filled($get('files'))),
                 Checkbox::make('reprint_label')
                     ->label('Réimprimer l\'étiquette (le site ou le département figure sur l\'étiquette)')
-                    ->visible(fn (Get $get): bool => $asset === null
+                    ->visible(fn (Get $get): bool => self::labelsPageExists() && ($asset === null
                         || (int) $get('site_id') !== (int) $asset->site_id
-                        || (int) $get('department_id') !== (int) $asset->department_id)
+                        || (int) $get('department_id') !== (int) $asset->department_id))
                     ->columnSpanFull(),
             ]),
         ];
@@ -246,8 +259,22 @@ final class TransferAction
         $labelChanged = $movements->contains(fn (Movement $movement): bool => $movement->from_site_id !== $movement->to_site_id
             || $movement->from_department_id !== $movement->to_department_id);
 
-        if (($data['reprint_label'] ?? false) && $labelChanged) {
+        if (($data['reprint_label'] ?? false) && $labelChanged && self::labelsPageExists()) {
             $action->redirect(url('/admin/etiquettes').'?'.http_build_query(['biens' => $movements->pluck('asset_id')->join(',')]));
         }
+    }
+
+    /**
+     * RG-24 : la page des étiquettes (lot 4) n'est proposée que si elle existe dans l'application.
+     */
+    public static function labelsPageExists(): bool
+    {
+        foreach (Route::getRoutes()->getRoutes() as $route) {
+            if ($route->uri() === 'admin/etiquettes') {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

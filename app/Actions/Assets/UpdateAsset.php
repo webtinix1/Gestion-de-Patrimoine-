@@ -49,7 +49,7 @@ class UpdateAsset
 
             $category = AssetCategory::query()->findOrFail($data['asset_category_id'] ?? $current->asset_category_id);
             $before = $this->movements->assignmentOf($current);
-            $current->update(($this->rules)(
+            $current->fill(($this->rules)(
                 [...$current->only(['acquisition_cost', 'depreciation_forced_off', 'status']), ...$data],
                 $category,
                 $current->status,
@@ -58,8 +58,15 @@ class UpdateAsset
 
             // RG-21 : un changement d'affectation fait depuis la fiche laisse aussi un mouvement.
             $after = $this->movements->assignmentOf($current);
+            $assignmentChanged = $this->movements->changedElements($before, $after) !== [];
 
-            if ($this->movements->changedElements($before, $after) !== []) {
+            if ($assignmentChanged) {
+                $current->assigned_since = today();
+            }
+
+            $current->save();
+
+            if ($assignmentChanged) {
                 $this->movements->record($current, $before, $after, today(), 'Modification de la fiche');
             }
 
