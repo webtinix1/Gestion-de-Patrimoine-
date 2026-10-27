@@ -55,9 +55,9 @@ Sites, départements (multi-sites), services, locaux, catégories (préfixe, rè
 
 ## Lot 6. Mouvements et transferts (1 j) · E13, E14 · RG-20 à RG-24
 
-- [ ] Affectation initiale enregistrée comme premier mouvement.
-- [ ] Transfert unitaire et groupé ; l'affectation précédente est conservée.
-- [ ] Historique des mouvements sur la fiche et liste filtrable.
+- [x] Affectation initiale enregistrée comme premier mouvement.
+- [x] Transfert unitaire et groupé ; l'affectation précédente est conservée.
+- [x] Historique des mouvements sur la fiche et liste filtrable.
 
 ## Lot 7. Immobilisations et amortissements (2,5 j) · E30 à E33 · RG-30 à RG-43
 

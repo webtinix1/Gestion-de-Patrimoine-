@@ -2,6 +2,7 @@
 
 namespace App\Actions\Assets;
 
+use App\Actions\Movements\RecordInitialAssignment;
 use App\Models\Asset;
 use App\Models\AssetCategory;
 use App\Services\AssetNumberGenerator;
@@ -31,6 +32,7 @@ class CreateAsset
             $asset = new Asset($data);
             $asset->forceFill(['number' => $this->numbers->next($category)]);
             $asset->save();
+            app(RecordInitialAssignment::class)($asset); // RG-22
 
             return $asset;
         }, attempts: 5);

@@ -7,6 +7,7 @@ use App\Filament\Resources\Assets\Pages\EditAsset;
 use App\Filament\Resources\Assets\Pages\ListAssets;
 use App\Filament\Resources\Assets\Pages\ViewAsset;
 use App\Filament\Resources\Assets\RelationManagers\DocumentsRelationManager;
+use App\Filament\Resources\Assets\RelationManagers\MovementsRelationManager;
 use App\Filament\Resources\Assets\Schemas\AssetForm;
 use App\Filament\Resources\Assets\Schemas\AssetInfolist;
 use App\Filament\Resources\Assets\Tables\AssetsTable;
@@ -75,6 +76,7 @@ class AssetResource extends Resource
     public static function getRelations(): array
     {
         return [
+            MovementsRelationManager::class,
             DocumentsRelationManager::class,
         ];
     }

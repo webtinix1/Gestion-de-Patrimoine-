@@ -55,6 +55,7 @@ class ActivityResource extends Resource
         'utilisateurs' => 'Utilisateurs',
         'roles' => 'Rôles et permissions',
         'biens' => 'Biens',
+        'mouvements' => 'Mouvements',
         'documents' => 'Documents',
     ];
 
