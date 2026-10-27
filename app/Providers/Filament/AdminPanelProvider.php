@@ -6,6 +6,8 @@ use App\Filament\AvatarProviders\InitialsAvatarProvider;
 use App\Filament\Pages\Auth\EditProfile;
 use App\Filament\Pages\Auth\Login;
 use App\Filament\Theme;
+use App\Http\Controllers\AssetPhotoController;
+use App\Http\Controllers\DocumentFileController;
 use App\Http\Middleware\EnsurePasswordIsChanged;
 use Filament\FontProviders\LocalFontProvider;
 use Filament\Http\Middleware\Authenticate;
@@ -20,6 +22,7 @@ use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
+use Illuminate\Support\Facades\Route;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 class AdminPanelProvider extends PanelProvider
@@ -49,6 +52,11 @@ class AdminPanelProvider extends PanelProvider
             ->defaultAvatarProvider(InitialsAvatarProvider::class)
             ->viteTheme('resources/css/filament/admin/theme.css')
             ->navigationGroups(self::NAVIGATION_GROUPS)
+            // RG-66 : les fichiers ne sortent que par ces routes, derrière l'authentification du panneau.
+            ->authenticatedRoutes(function (): void {
+                Route::get('documents/{document}/fichier', DocumentFileController::class)->name('documents.file');
+                Route::get('biens/{asset}/photo', AssetPhotoController::class)->name('assets.photo');
+            })
             ->darkMode(false)
             ->sidebarCollapsibleOnDesktop()
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')

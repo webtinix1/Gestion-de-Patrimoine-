@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Activities;
 
 use App\Filament\Resources\Activities\Pages\ListActivities;
 use App\Models\Activity;
+use App\Models\Asset;
 use App\Models\Role;
 use App\Models\User;
 use BackedEnum;
@@ -53,11 +54,35 @@ class ActivityResource extends Resource
         'connexion' => 'Connexion',
         'utilisateurs' => 'Utilisateurs',
         'roles' => 'Rôles et permissions',
+        'biens' => 'Biens',
+        'documents' => 'Documents',
     ];
 
     public static function canCreate(): bool
     {
         return false;
+    }
+
+    /**
+     * RG-81 : une opération portant sur un bien n'apparaît que si ce bien est dans le
+     * périmètre de l'utilisateur (le scope global s'applique dans whereHasMorph).
+     *
+     * @return Builder<Activity>
+     */
+    public static function getEloquentQuery(): Builder
+    {
+        $query = Activity::query();
+        $user = auth()->user();
+
+        if (! $user instanceof User || ($user->perimeterSiteIds() === null && $user->perimeterDepartmentIds() === null)) {
+            return $query;
+        }
+
+        $assetType = (new Asset)->getMorphClass();
+
+        return $query->where(fn (Builder $query) => $query
+            ->where(fn (Builder $query) => $query->whereNull('subject_type')->orWhere('subject_type', '!=', $assetType))
+            ->orWhereHasMorph('subject', [Asset::class]));
     }
 
     public static function table(Table $table): Table
