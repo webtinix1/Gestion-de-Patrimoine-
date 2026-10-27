@@ -27,5 +27,7 @@ class DemoSeeder extends Seeder
                 'is_active' => true,
             ],
         );
+
+        $this->call(StructureDemoSeeder::class);
     }
 }
