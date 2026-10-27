@@ -127,25 +127,16 @@ class ChangeDepreciationParameters
      */
     private function normalize(Asset $asset, array $changes): array
     {
-        $values = [];
         $errors = [];
+        $has = fn (string $parameter): bool => array_key_exists($parameter, $changes);
 
-        foreach (array_intersect_key($changes, array_flip(self::PARAMETERS)) as $parameter => $value) {
-            $values[$parameter] = match ($parameter) {
-                'acquisition_cost', 'residual_value', 'duration_years' => is_numeric($value) ? (int) $value : null,
-                'in_service_on' => $this->date($value),
-                'depreciation_method' => $value instanceof DepreciationMethod ? $value : DepreciationMethod::tryFrom((string) $value),
-                default => $value,
-            };
-        }
+        $cost = $has('acquisition_cost') ? self::integer($changes['acquisition_cost']) : (int) $asset->acquisition_cost;
+        $residual = $has('residual_value') ? self::integer($changes['residual_value']) : $asset->residual_value;
+        $duration = $has('duration_years') ? self::integer($changes['duration_years']) : (int) $asset->duration_years;
+        $inService = $has('in_service_on') ? $this->date($changes['in_service_on']) : $asset->in_service_on?->toDateString();
+        $method = $has('depreciation_method') ? self::method($changes['depreciation_method']) : $asset->depreciation_method;
 
-        $cost = $values['acquisition_cost'] ?? (int) $asset->acquisition_cost;
-        $residual = $values['residual_value'] ?? $asset->residual_value;
-        $duration = $values['duration_years'] ?? (int) $asset->duration_years;
-        $method = array_key_exists('depreciation_method', $values) ? $values['depreciation_method'] : $asset->depreciation_method;
-        $inService = $values['in_service_on'] ?? $asset->in_service_on?->toDateString();
-
-        if (array_key_exists('acquisition_cost', $values) && ($cost === null || $cost <= 0)) {
+        if ($cost === null || $cost <= 0) {
             $errors['acquisition_cost'] = 'La valeur d\'origine doit être un montant positif.';
         }
 
@@ -184,7 +175,23 @@ class ChangeDepreciationParameters
             throw ValidationException::withMessages($errors);
         }
 
-        return $values;
+        return array_intersect_key([
+            'acquisition_cost' => $cost,
+            'residual_value' => $residual,
+            'duration_years' => $duration,
+            'in_service_on' => $inService,
+            'depreciation_method' => $method,
+        ], array_flip(array_keys(array_intersect_key($changes, array_flip(self::PARAMETERS)))));
+    }
+
+    private static function integer(mixed $value): ?int
+    {
+        return is_numeric($value) ? (int) $value : null;
+    }
+
+    private static function method(mixed $value): ?DepreciationMethod
+    {
+        return $value instanceof DepreciationMethod ? $value : DepreciationMethod::tryFrom(is_string($value) ? $value : '');
     }
 
     private function date(mixed $value): ?string

@@ -15,6 +15,13 @@ Questions à faire trancher par l'Église avant ou pendant le développement. Po
 | Q7 | Comment traiter un changement de durée en cours de vie : répartition de la VNC sur la durée restante (cas A6) ? | Oui |
 | Q8 | Faut-il afficher une plus ou moins-value indicative à la sortie, ou seulement la VNC ? | VNC seule, plus-value indicative pour les cessions |
 | Q9 | Validation des 8 cas de `tests/Fixtures/amortissements.json` : signature du comptable sur une copie imprimée. | Non validés |
+| Q9.1 | Bien enregistré avec une mise en service antérieure à des exercices déjà clôturés (reprise de l'existant, saisie tardive) : faut-il des lignes théoriques pour ces exercices passés, ou un rattrapage du cumul sur l'exercice ouvert ? *(ajoutée au lot 7)* | Lignes théoriques depuis la mise en service, figées aussitôt (statut « Antérieur » ou « Clôturé »), sans rattrapage |
+| Q9.2 | Correction d'une erreur de saisie (prix, date de mise en service) : même traitement qu'un changement de paramètre ? *(ajoutée au lot 7)* | Depuis la fiche : recalcul complet sans motif tant que le plan n'est ni validé ni figé ; ensuite refusé, à faire depuis le plan avec motif (RG-37, prospectif) |
+| Q9.3 | Changement de paramètre impossible sans toucher un exercice clôturé (nouvelle base inférieure au cumul figé, nouvelle durée terminée avant l'exercice ouvert) : refus, ou dotation exceptionnelle ? *(ajoutée au lot 7)* | Refusé avec un message |
+| Q9.4 | Dégressif (si retenu, Q4) : base = VNC moins valeur résiduelle ? Durée de moins de 3 ans ? Sortie en cours d'exercice comptée en mois jusqu'au mois de sortie inclus ? *(ajoutée au lot 7)* | Base = VNC − valeur résiduelle ; refusé sous 3 ans ; mois de sortie inclus ; bascule si l'annuité linéaire est strictement supérieure |
+| Q9.5 | Bien amortissable sans date de mise en service (par exemple en stock) : départ à la date d'acquisition ou pas de plan ? *(ajoutée au lot 7)* | Pas de plan tant que la date manque (signalé à la clôture) |
+| Q9.6 | Clôture : les plans de l'exercice sont « validés » par la clôture (RG-38) au nom de la personne qui clôture ; les exercices se clôturent dans l'ordre chronologique. À confirmer. *(ajoutée au lot 7)* | Oui, les deux |
+| Q9.7 | Exercice non civil (Q5) : le calcul suppose l'année civile ; un exercice décalé demanderait d'adapter le prorata. *(ajoutée au lot 7)* | Année civile imposée à la création d'un exercice |
 
 ## À valider avec l'administration de l'Église
 
