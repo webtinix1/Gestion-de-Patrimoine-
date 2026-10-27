@@ -12,7 +12,7 @@ use Filament\Facades\Filament;
 use function Pest\Livewire\livewire;
 
 beforeEach(function () {
-    $this->actingAs(User::factory()->create());
+    $this->actingAs(User::factory()->admin()->create());
     Filament::setCurrentPanel(Filament::getPanel('admin'));
 });
 
