@@ -65,6 +65,16 @@ class Document extends Model
         return $this->morphedByMany(Asset::class, 'documentable')->withTimestamps();
     }
 
+    /**
+     * Acquisitions dont le document est un justificatif, limitées au périmètre de l'utilisateur.
+     *
+     * @return MorphToMany<Acquisition, $this>
+     */
+    public function acquisitions(): MorphToMany
+    {
+        return $this->morphedByMany(Acquisition::class, 'documentable')->withTimestamps();
+    }
+
     public function humanSize(): string
     {
         return FileSize::format($this->size);
@@ -97,7 +107,7 @@ class Document extends Model
         $unrestricted = $user->perimeterSiteIds() === null && $user->perimeterDepartmentIds() === null;
 
         $query->where(function (Builder $query) use ($unrestricted): void {
-            $query->whereHas('assets');
+            $query->whereHas('assets')->orWhereHas('acquisitions');
 
             if ($unrestricted) {
                 $query->orWhereNotExists(
