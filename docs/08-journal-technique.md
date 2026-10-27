@@ -42,7 +42,10 @@ Compatibilité vérifiée sur Packagist le 27/10/2026 : Laravel 13 exige PHP ^8.
   - Le gestionnaire n'a pas « valider » dans la matrice : seul l'administrateur valide (Q5.1).
   - Fiches créées : état « Neuf » (à défaut, le premier état actif), statut « En service », mise en service vide (Q5.2).
   - Supprimer un brouillon demande le droit « modifier » (Q5.3). Les fichiers des justificatifs d'un brouillon supprimé sont conservés.
-  - Quantité limitée à 500 par ligne.
+  - Quantité limitée à 500 par ligne et à 500 unités suivies par acquisition (contrôle à la saisie et à la validation : verrou du compteur tenu pendant la validation, durée, longueur de l'URL des étiquettes).
+  - L'année de la date d'acquisition d'un brouillon ne peut plus changer : la référence la porte (Q5.3).
+  - Correctifs de revue : les justificatifs d'acquisition ne sont visibles dans E28 qu'avec le droit `acquisitions.view` ; ajout et retrait d'un justificatif relisent l'état sous verrou ; RG-86 sur les brouillons (`lock_version`, `DetectsConcurrentEdits`, contrôle sous verrou dans `UpdateAcquisition`) ; la validation n'est plus proposée sur l'écran de modification (elle abandonnerait les modifications non enregistrées) ; fournisseur désactivé refusé ; journal des modifications d'un brouillon (en-tête et lignes, avant et après lisibles).
+  - Test de concurrence de la validation en processus parallèles (`tests/Feature/Acquisitions/ValidationAcquisitionConcurrenceTest.php`) : SQLite toujours, MySQL ou MariaDB avec les variables `CONCURRENCE_DB_*`.
   - Les acquisitions de démonstration autres que 038 sont des brouillons : valider les 8 de la maquette créerait une trentaine de fiches et fausserait les 300 biens et le prochain numéro de la démonstration.
   - Fichiers partagés touchés a minima : `Asset` (`acquisition_line_id` ajouté aux champs remplissables) et `Document` (relation `acquisitions`, visibilité), `DemoSeeder` (une ligne). `CreateAsset`, `AssetResource` et `AssetInfolist` ne sont pas modifiés.
 - **Écarts par rapport aux docs** : la colonne « Étiquettes » (à imprimer / imprimées) et le compteur de la maquette ne sont pas affichés, faute de suivi des impressions (Q5.4). La liste affiche un résumé en sous-titre plutôt que les quatre cartes. Pas d'export de la liste. La clé `assets.acquisition_line_id` n'a pas de contrainte étrangère (colonne du lot 3).
