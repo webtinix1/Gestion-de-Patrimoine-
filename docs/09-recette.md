@@ -217,8 +217,8 @@ Deux parties : la **recette technique** faite par Claude Code le 28/10/2026 sur 
 ### Résultat de la suite de tests
 
 - Commande : `pest` (suite complète), variables `CONCURRENCE_DB_*` pointant sur MariaDB 11.5.2 (base `recette`).
-- **975 tests : 960 réussis, 15 ignorés, 4 « risky », 0 échec, 8 049 assertions, 66 min 32 s** (poste chargé par d'autres travaux). Les tests ignorés sont les variantes MySQL des tests de concurrence (aucun serveur MySQL jetable) ; toutes les variantes MariaDB ont tourné.
-- Relance ciblée `pest --filter=Concurrence` (sortie détaillée) pour nommer les tests : voir les critères 7, 13 et 22.
+- **975 tests : 960 réussis, 15 ignorés, 4 « risky », 0 échec, 8 049 assertions, 66 min 32 s** (poste chargé par d'autres travaux). Tests ignorés : 13 variantes MySQL des tests de concurrence (aucun serveur MySQL jetable) et 2 tests du cas « page absente » devenus sans objet après l'intégration (`EcransMaintenanceTest.php:149`, page des sorties ; `RevueMouvementsTest.php:142`, page des étiquettes). Toutes les variantes MariaDB ont tourné.
+- Relance ciblée `pest --filter=Concurrence` (sortie détaillée, pour nommer les tests) : **28 réussis, 13 ignorés (MySQL), 286 assertions, 29 min** ; sur SQLite et MariaDB : numéros de biens, validation d'acquisition, saisie simultanée d'inventaire, prêt unique d'un bien demandé par plusieurs postes, références PRT / MNT / SIG uniques et sans trou, prêt et passage En maintenance simultanés, une seule intervention ouverte, sortie unique d'un bien, références de sorties distinctes, clôture d'exercice et sortie simultanées.
 - Unitaires seuls (`pest tests/Unit`) : 29 tests, 297 assertions, passés.
 - Larastan et Pint n'ont pas été relancés par la recette (verts au lot 12 selon `docs/08`).
 
