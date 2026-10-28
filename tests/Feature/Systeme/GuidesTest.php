@@ -2,6 +2,7 @@
 
 use Database\Seeders\DemoSeeder;
 use Illuminate\Support\Facades\Artisan;
+use Tests\Support\PdfInspector;
 
 /**
  * Lot 12 : guides utilisateur en PDF, générés hors ligne à partir de docs/guides.
@@ -47,7 +48,7 @@ it('génère un PDF par guide avec son titre', function () {
 
         $content = (string) file_get_contents($pdf);
         preg_match('/^#\s+(.+)$/m', (string) file_get_contents($source), $title);
-        $texts = implode(' ', (new Tests\Support\PdfInspector($content))->texts());
+        $texts = implode(' ', (new PdfInspector($content))->texts());
 
         expect(str_starts_with($content, '%PDF'))->toBeTrue()
             ->and(mb_strtoupper($texts))->toContain(mb_strtoupper(explode(' ', trim($title[1]))[0]));
