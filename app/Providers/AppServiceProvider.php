@@ -13,6 +13,8 @@ use Illuminate\Validation\Rules\Password;
 
 class AppServiceProvider extends ServiceProvider
 {
+    public const int PASSWORD_MINIMUM = 8;
+
     public function register(): void
     {
         $this->app->scoped(Settings::class);
@@ -23,7 +25,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         // RG-85 : 8 caractères minimum, dont un chiffre.
-        Password::defaults(fn () => Password::min(8)->numbers());
+        Password::defaults(fn () => Password::min(self::PASSWORD_MINIMUM)->numbers());
 
         // Dates affichées en jj/mm/aaaa.
         Table::configureUsing(fn (Table $table) => $table

@@ -10,6 +10,7 @@ use App\Filament\Theme;
 use App\Http\Controllers\AssetPhotoController;
 use App\Http\Controllers\AssetReportPhotoController;
 use App\Http\Controllers\DocumentFileController;
+use App\Http\Middleware\ApplySessionLifetime;
 use App\Http\Middleware\EnsurePasswordIsChanged;
 use Filament\FontProviders\LocalFontProvider;
 use Filament\Http\Middleware\Authenticate;
@@ -75,6 +76,7 @@ class AdminPanelProvider extends PanelProvider
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
             ->widgets([])
             ->middleware([
+                ApplySessionLifetime::class,
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,
                 StartSession::class,

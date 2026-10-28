@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\ApplySessionLifetime;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -13,7 +14,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        // RG-85, E41 : durée d'inactivité lue dans les paramètres, avant le démarrage de la session.
+        $middleware->web(prepend: [ApplySessionLifetime::class]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

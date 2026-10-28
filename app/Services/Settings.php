@@ -2,11 +2,13 @@
 
 namespace App\Services;
 
+use App\Http\Middleware\ApplySessionLifetime;
 use App\Models\Setting;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Paramètres de l'application (table settings), avec les valeurs par défaut de docs/06
- * tant que l'Église n'a pas répondu. Écran de paramétrage : E41.
+ * tant que l'Église n'a pas répondu. Écran de paramétrage : E41 (page Paramètres).
  */
 class Settings
 {
@@ -49,6 +51,14 @@ class Settings
 
     public const string ALERT_DEPRECIATION_MONTHS = 'alert_depreciation_months';
 
+    // RG-85 : déconnexion après inactivité, en minutes. Absent : SESSION_LIFETIME du fichier .env s'applique.
+    public const string SESSION_LIFETIME_MINUTES = 'session_lifetime_minutes';
+
+    // État technique (jamais saisi) : dernier calcul des alertes et dernière sauvegarde réussie, affichés par E41.
+    public const string ALERTS_LAST_RUN_AT = 'alerts_last_run_at';
+
+    public const string LAST_BACKUP_AT = 'last_backup_at';
+
     public const string FORMAT_GLOBAL = 'global';
 
     public const string FORMAT_YEARLY = 'yearly';
@@ -86,11 +96,38 @@ class Settings
         return $this->cache[$key] ?? self::DEFAULTS[$key] ?? null;
     }
 
+    public function has(string $key): bool
+    {
+        $this->cache ??= Setting::query()->pluck('value', 'key')->all();
+
+        return array_key_exists($key, $this->cache);
+    }
+
+    /**
+     * État technique (dernier calcul, dernière sauvegarde) : ne désigne aucun utilisateur et n'est pas journalisé.
+     */
+    public function recordTechnical(string $key, string $value): void
+    {
+        Setting::query()->updateOrCreate(['key' => $key], ['value' => $value]);
+
+        $this->cache = null;
+    }
+
+    public function refresh(): void
+    {
+        $this->cache = null;
+    }
+
     public function set(string $key, mixed $value): void
     {
         Setting::query()->updateOrCreate(['key' => $key], ['value' => $value, 'updated_by' => auth()->id()]);
 
         $this->cache = null;
+
+        // La durée de session est lue par un middleware via un cache court (ApplySessionLifetime).
+        if ($key === self::SESSION_LIFETIME_MINUTES) {
+            Cache::forget(ApplySessionLifetime::CACHE_KEY);
+        }
     }
 
     public function string(string $key): string
