@@ -9,8 +9,15 @@
     - compile l'interface si public\build est absent (Node 20.19+ ou 22+ requis ; le paquet livré la contient) ;
     - lance les migrations, charge les référentiels de base et crée le premier administrateur
       (mot de passe saisi sans écho, jamais écrit ni affiché) ;
-    - met en cache la configuration (php artisan optimize).
-    Avec -Demo, charge aussi la démonstration (comptes à mot de passe connu : à réserver aux essais).
+    - met en cache la configuration (php artisan optimize). Après toute modification ultérieure de .env,
+      relancer : php artisan optimize
+    Avec -Demo, charge aussi la démonstration (comptes à mot de passe connu : à réserver aux essais, base vide) ;
+    un .env neuf est alors écrit en APP_ENV=local.
+
+    Entrée redirigée (-MotDePasseStdin) : le script lit tout l'entrée standard, une valeur par ligne, dans cet ordre :
+      1. le mot de passe de la base (seulement si .env est créé et que la base n'est pas SQLite) ;
+      2. le mot de passe du premier administrateur (seulement si aucun administrateur n'existe encore).
+    Les caractères accentués d'un mot de passe peuvent être altérés par le tube de Windows PowerShell 5.1 : les éviter.
 
 .EXAMPLE
     .\install.ps1
@@ -75,36 +82,66 @@ function Quote-EnvValue([string]$Value) {
     return '"' + ($Value -replace '\\', '\\' -replace '"', '\"' -replace '\$', '\$') + '"'
 }
 
+# Version de PHP d'un exécutable, ou $null s'il ne répond pas.
+function Get-PhpVersion([string]$Exe) {
+    try {
+        $v = (& $Exe -r 'echo PHP_VERSION;') -replace '^(\d+\.\d+\.\d+).*$', '$1'
+        return [version]$v
+    } catch { return $null }
+}
+
 # 1. PHP -----------------------------------------------------------------------------------------------
 Step 'PHP'
-$phpExe = $null
+$minimum = [version]'8.3.0'
+$candidates = @()
 if ($Php) {
     if (-not (Test-Path -LiteralPath $Php)) { Fail "PHP introuvable : $Php" }
-    $phpExe = (Resolve-Path -LiteralPath $Php).Path
+    $candidates += (Resolve-Path -LiteralPath $Php).Path
 } else {
     $cmd = Get-Command php -ErrorAction SilentlyContinue
-    if ($cmd) { $phpExe = $cmd.Source }
-    if (-not $phpExe) {
-        $wamp = Get-ChildItem 'C:\wamp64\bin\php\php*\php.exe' -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1
-        if ($wamp) { $phpExe = $wamp.FullName }
-    }
+    if ($cmd) { $candidates += $cmd.Source }
+    # WAMP : tri par numéro de version (et non par ordre alphabétique : 8.10 > 8.4).
+    $wamp = Get-ChildItem 'C:\wamp64\bin\php\php*\php.exe' -ErrorAction SilentlyContinue |
+        Sort-Object { try { [version]($_.Directory.Name -replace '^php', '') } catch { [version]'0.0' } } -Descending
+    foreach ($w in $wamp) { if ($candidates -notcontains $w.FullName) { $candidates += $w.FullName } }
 }
-if (-not $phpExe) { Fail "PHP introuvable. Installez WAMP (PHP 8.3 ou plus) ou passez -Php C:\wamp64\bin\php\php8.3.x\php.exe" }
 
-$phpVersion = (& $phpExe -r 'echo PHP_VERSION;')
-if ([version]($phpVersion -replace '^(\d+\.\d+\.\d+).*$', '$1') -lt [version]'8.3.0') {
-    Fail "PHP $phpVersion est trop ancien : la version 8.3 ou plus est exigée (WAMP : Menu PHP > Version)."
+$phpExe = $null
+$phpVersion = $null
+foreach ($candidate in $candidates) {
+    $version = Get-PhpVersion $candidate
+    if ($version -and $version -ge $minimum) { $phpExe = $candidate; $phpVersion = $version; break }
+    if ($version) { Write-Host "Ignoré : PHP $version ($candidate) est inférieur à 8.3." -ForegroundColor Yellow }
+}
+if (-not $phpExe) {
+    Fail "Aucun PHP 8.3 ou plus trouvé. Installez-le dans WAMP, ou indiquez-le : .\install.ps1 -Php C:\wamp64\bin\php\php8.3.x\php.exe"
 }
 Write-Host "PHP $phpVersion : $phpExe"
+
+# Entrée redirigée : toutes les lignes sont lues une fois (une valeur par ligne), voir l'aide du script.
+$stdinLines = @()
+if ($MotDePasseStdin -or [Console]::IsInputRedirected) {
+    $stdinLines = @([Console]::In.ReadToEnd() -split "`r?`n")
+}
+$stdinIndex = 0
+function Read-StdinLine {
+    if ($script:stdinIndex -lt $stdinLines.Count) { $line = $stdinLines[$script:stdinIndex]; $script:stdinIndex++; return $line }
+    return ''
+}
 
 # 2. Paquet ---------------------------------------------------------------------------------------------
 Step 'Paquet'
 if (-not (Test-Path -LiteralPath 'vendor\autoload.php')) {
     $composer = Get-Command composer -ErrorAction SilentlyContinue
     if (-not $composer) { Fail "Le dossier vendor est absent : le paquet livré est incomplet (ou installez Composer sur une machine connectée)." }
-    & $phpExe $composer.Source install --no-dev --optimize-autoloader -n --no-scripts
+    if ($composer.Source -match '\.(bat|cmd|exe)$') {
+        & $composer.Source install --no-dev --optimize-autoloader -n --no-scripts
+    } else {
+        & $phpExe $composer.Source install --no-dev --optimize-autoloader -n --no-scripts
+    }
     if ($LASTEXITCODE -ne 0) { Fail 'composer install a échoué.' }
     & $phpExe artisan package:discover
+    if ($LASTEXITCODE -ne 0) { Fail 'php artisan package:discover a échoué.' }
 }
 Write-Host 'vendor présent.'
 
@@ -115,7 +152,9 @@ if (Test-Path -LiteralPath '.env') {
 } else {
     if (-not (Test-Path -LiteralPath '.env.example')) { Fail '.env.example est introuvable.' }
     Copy-Item -LiteralPath '.env.example' -Destination '.env'
-    Set-EnvValue '.env' 'APP_ENV' 'production'
+    # -Demo : la démonstration est refusée en production ; un .env neuf d'essai est donc en local.
+    $envName = if ($Demo) { 'local' } else { 'production' }
+    Set-EnvValue '.env' 'APP_ENV' $envName
     Set-EnvValue '.env' 'APP_DEBUG' 'false'
     Set-EnvValue '.env' 'APP_URL' (Quote-EnvValue $Url)
     Set-EnvValue '.env' 'LOG_LEVEL' 'warning'
@@ -128,13 +167,17 @@ if (Test-Path -LiteralPath '.env') {
         Set-EnvValue '.env' 'DB_PORT' "$DbPort"
         Set-EnvValue '.env' 'DB_DATABASE' $DbNom
         Set-EnvValue '.env' 'DB_USERNAME' (Quote-EnvValue $DbUtilisateur)
-        $secure = Read-Host "Mot de passe MySQL de l'utilisateur '$DbUtilisateur' (vide si aucun ; non affiché)" -AsSecureString
-        $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
-        try { $plain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr) } finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
+        if ([Console]::IsInputRedirected) {
+            $plain = Read-StdinLine
+        } else {
+            $secure = Read-Host "Mot de passe MySQL de l'utilisateur '$DbUtilisateur' (vide si aucun ; non affiché)" -AsSecureString
+            $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
+            try { $plain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr) } finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
+        }
         Set-EnvValue '.env' 'DB_PASSWORD' (Quote-EnvValue $plain)
         $plain = $null
     }
-    Write-Host '.env créé à partir de .env.example (production, débogage désactivé).'
+    Write-Host ".env créé à partir de .env.example (APP_ENV=$envName, débogage désactivé)."
 }
 
 if (-not (Get-EnvValue '.env' 'APP_KEY')) {
@@ -165,7 +208,12 @@ if ($MotDePasseStdin) { $arguments += '--mot-de-passe-stdin' }
 if ($Identifiant) { $arguments += "--identifiant=$Identifiant" }
 if ($Prenom) { $arguments += "--prenom=$Prenom" }
 if ($Nom) { $arguments += "--nom=$Nom" }
-& $phpExe @arguments
+if ($MotDePasseStdin) {
+    # Le mot de passe de l'administrateur est transmis à PHP sur son entrée standard (jamais en argument).
+    Read-StdinLine | & $phpExe @arguments
+} else {
+    & $phpExe @arguments
+}
 if ($LASTEXITCODE -ne 0) { Fail "patrimoine:installer a échoué (code $LASTEXITCODE). Corrigez le problème indiqué puis relancez install.ps1." }
 
 Step 'Cache de configuration'
@@ -173,11 +221,18 @@ Step 'Cache de configuration'
 if ($LASTEXITCODE -ne 0) { Fail 'php artisan optimize a échoué.' }
 
 # 6. Tâche planifiée ------------------------------------------------------------------------------------
-$taskCommand = "`"$phpExe`" `"$PSScriptRoot\artisan`" schedule:run"
 if ($TachePlanifiee) {
     Step 'Tâche planifiée Windows'
-    schtasks /Create /TN 'Patrimoine - planificateur' /TR $taskCommand /SC MINUTE /MO 1 /RU SYSTEM /F | Out-Null
-    if ($LASTEXITCODE -ne 0) { Fail "Création de la tâche refusée : relancez PowerShell en administrateur, ou créez-la à la main (docs\07-deploiement-local.md)." }
+    # Exécutable et arguments séparés : un chemin contenant un espace reste correctement cité.
+    $action = New-ScheduledTaskAction -Execute $phpExe -Argument "`"$PSScriptRoot\artisan`" schedule:run" -WorkingDirectory $PSScriptRoot
+    $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 1) -RepetitionDuration (New-TimeSpan -Days 3650)
+    $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
+    $settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 10)
+    try {
+        Register-ScheduledTask -TaskName 'Patrimoine - planificateur' -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
+    } catch {
+        Fail "Création de la tâche refusée ($($_.Exception.Message)) : relancez PowerShell en administrateur, ou créez-la à la main (docs\07-deploiement-local.md)."
+    }
     Write-Host 'Tâche « Patrimoine - planificateur » enregistrée (chaque minute).'
 }
 

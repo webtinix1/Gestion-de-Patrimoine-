@@ -2,12 +2,14 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Asset;
+use App\Models\Department;
+use App\Models\Site;
 use App\Models\User;
 use App\Services\System\EnvironmentCheck;
 use App\Support\DefaultRoles;
 use Database\Seeders\DemoSeeder;
 use Database\Seeders\ReferenceSeeder;
-use Database\Seeders\UsersDemoSeeder;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -34,9 +36,18 @@ class InstallCommand extends Command
 {
     private const int MINIMUM_PASSWORD_LENGTH = 12;
 
+    /**
+     * Flux lu par --mot-de-passe-stdin à la place de l'entrée standard (tests).
+     *
+     * @var resource|null
+     */
+    public static $stdin = null;
+
     public function handle(EnvironmentCheck $check): int
     {
         if (! $this->laravel->runningInConsole()) {
+            $this->error('Cette commande est réservée à la ligne de commande (php artisan).');
+
             return self::FAILURE;
         }
 
@@ -49,7 +60,7 @@ class InstallCommand extends Command
         }
 
         $this->components->info('1/5 Contrôle de l\'environnement');
-        $results = $check->run(withDatabase: false);
+        $results = $check->run(withDatabase: false, repair: true);
         $this->printChecks($results);
 
         if ($check->hasFailure($results)) {
@@ -173,14 +184,15 @@ class InstallCommand extends Command
 
     private function canLoadDemo(): bool
     {
-        $demoUsers = [DemoSeeder::ADMIN_USERNAME, ...array_column(UsersDemoSeeder::USERS, 0)];
-        $foreign = User::query()->whereNotIn('username', $demoUsers)->exists();
+        // DemoSeeder fait un updateOrCreate sur « admin » : sur une base non vide, il écraserait un vrai compte.
+        $notEmpty = User::query()->exists() || Site::query()->withoutGlobalScopes()->exists()
+            || Department::query()->withoutGlobalScopes()->exists() || Asset::query()->withoutGlobalScopes()->exists();
 
-        if ($foreign) {
-            $this->error('Démonstration refusée : la base contient déjà des comptes réels. Utilisez une base vide.');
+        if ($notEmpty) {
+            $this->error('Démonstration refusée : la base contient déjà des comptes ou des données. Utilisez une base vide (php artisan migrate:fresh sur un poste d\'essai).');
         }
 
-        return ! $foreign;
+        return ! $notEmpty;
     }
 
     private function ensureAdministrator(): bool
@@ -246,7 +258,7 @@ class InstallCommand extends Command
 
     private function passwordFromStdin(): ?string
     {
-        $line = fgets(STDIN);
+        $line = fgets(self::$stdin ?? STDIN);
         $password = $line === false ? '' : rtrim($line, "\r\n");
 
         return $this->validPassword($password) ? $password : null;

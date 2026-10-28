@@ -90,7 +90,7 @@ class DatabaseTools
 
         foreach ($dirs as $dir) {
             foreach ($names as $name) {
-                foreach ([$name.'.exe', $name] as $file) {
+                foreach ([$name.'.exe', $name.'.bat', $name.'.cmd', $name] as $file) {
                     $candidate = rtrim($dir, '/\\').DIRECTORY_SEPARATOR.$file;
 
                     if (is_file($candidate)) {
@@ -112,6 +112,20 @@ class DatabaseTools
             return stripos((string) DB::selectOne('select version() as v')?->v, 'mariadb') !== false;
         } catch (Throwable) {
             return false;
+        }
+    }
+
+    /**
+     * M4 : copie cohérente d'une base SQLite en service (VACUUM INTO), journal compris.
+     */
+    public function snapshotSqlite(string $targetFile): void
+    {
+        try {
+            $pdo = new \PDO('sqlite:'.$this->sqlitePath());
+            $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+            $pdo->exec('VACUUM INTO '.$pdo->quote($targetFile));
+        } catch (Throwable $e) {
+            throw new BackupException('La copie de la base SQLite a échoué : '.$e->getMessage(), 0, $e);
         }
     }
 
@@ -193,9 +207,16 @@ class DatabaseTools
             'password='.$quote($config['password'] ?? ''),
         ];
 
-        $file = tempnam(sys_get_temp_dir(), 'pat');
+        // M13 : nettoie les fichiers de connexion oubliés par une exécution interrompue (plus d'une heure).
+        foreach (glob(sys_get_temp_dir().DIRECTORY_SEPARATOR.'patrimoine-cnf-*.cnf') ?: [] as $old) {
+            if (@filemtime($old) < time() - 3600) {
+                @unlink($old);
+            }
+        }
 
-        if ($file === false) {
+        $file = sys_get_temp_dir().DIRECTORY_SEPARATOR.'patrimoine-cnf-'.bin2hex(random_bytes(8)).'.cnf';
+
+        if (@file_put_contents($file, '') === false) {
             throw new BackupException('Impossible de créer le fichier temporaire de connexion.');
         }
 

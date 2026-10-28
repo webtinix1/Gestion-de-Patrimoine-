@@ -1,10 +1,13 @@
 <?php
 
+use App\Console\Commands\InstallCommand;
 use App\Models\AssetCategory;
+use App\Models\Site;
 use App\Models\User;
 use App\Services\System\EnvironmentCheck;
 use App\Support\DefaultRoles;
 use Database\Seeders\DemoSeeder;
+use Database\Seeders\RolesSeeder;
 use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Role;
 
@@ -138,8 +141,74 @@ it('refuse la démonstration sur une base qui contient déjà des comptes réels
     User::factory()->create(['username' => 'compte.reel']);
 
     $this->artisan('patrimoine:installer', ['--demo' => true])
-        ->expectsOutputToContain('comptes réels')
+        ->expectsOutputToContain('comptes ou des données')
         ->assertFailed();
 
     expect(User::query()->where('username', DemoSeeder::ADMIN_USERNAME)->exists())->toBeFalse();
+});
+
+it('ne touche jamais un vrai administrateur nommé admin avec --demo', function () {
+    $this->seed(RolesSeeder::class);
+    $reel = User::factory()->create(['username' => 'admin', 'password' => 'Mot-de-passe-reel-2026']);
+    $reel->assignRole(DefaultRoles::ADMIN);
+
+    $this->artisan('patrimoine:installer', ['--demo' => true])
+        ->expectsOutputToContain('comptes ou des données')
+        ->assertFailed();
+
+    expect(Hash::check('Mot-de-passe-reel-2026', $reel->fresh()->password))->toBeTrue()
+        ->and(User::query()->count())->toBe(1);
+});
+
+it('refuse la démonstration dès qu\'il existe des données métier', function () {
+    Site::query()->create(['code' => 'SIE', 'name' => 'Siège', 'is_active' => true]);
+
+    $this->artisan('patrimoine:installer', ['--demo' => true])->assertFailed();
+
+    expect(User::query()->count())->toBe(0);
+});
+
+it('lit le mot de passe sur l\'entrée standard avec --mot-de-passe-stdin, sans l\'afficher', function () {
+    $stream = fopen('php://memory', 'w+');
+    fwrite($stream, "Secret-Stdin-2026\r\n");
+    rewind($stream);
+    InstallCommand::$stdin = $stream;
+
+    try {
+        $this->artisan('patrimoine:installer', ['--mot-de-passe-stdin' => true, '--identifiant' => 'admin.stdin', '--no-interaction' => true])
+            ->doesntExpectOutputToContain('Secret-Stdin-2026')
+            ->assertSuccessful();
+    } finally {
+        InstallCommand::$stdin = null;
+        fclose($stream);
+    }
+
+    $admin = User::query()->where('username', 'admin.stdin')->firstOrFail();
+    expect(Hash::check('Secret-Stdin-2026', $admin->password))->toBeTrue();
+});
+
+it('refuse un mot de passe faible lu sur l\'entrée standard', function () {
+    $stream = fopen('php://memory', 'w+');
+    fwrite($stream, "court\n");
+    rewind($stream);
+    InstallCommand::$stdin = $stream;
+
+    try {
+        $this->artisan('patrimoine:installer', ['--mot-de-passe-stdin' => true, '--no-interaction' => true])->assertFailed();
+    } finally {
+        InstallCommand::$stdin = null;
+        fclose($stream);
+    }
+
+    expect(User::query()->count())->toBe(0);
+});
+
+it('patrimoine:verifier ne crée aucun dossier et n\'écrit aucun fichier', function () {
+    $dossier = base_path('storage/logs');
+    $avant = glob($dossier.'/.ecriture-*') ?: [];
+
+    $results = app(EnvironmentCheck::class)->directories(repair: false);
+
+    expect(glob($dossier.'/.ecriture-*') ?: [])->toBe($avant)
+        ->and(collect($results)->pluck('status')->unique()->all())->toBe(['ok']);
 });

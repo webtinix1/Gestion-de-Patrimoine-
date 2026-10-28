@@ -24,9 +24,9 @@ class EnvironmentCheck
     /**
      * @return list<array{label: string, status: 'ok'|'warn'|'fail', detail: string}>
      */
-    public function run(bool $withDatabase = true): array
+    public function run(bool $withDatabase = true, bool $repair = false): array
     {
-        $results = [$this->php(), ...$this->extensions(), ...$this->directories(), ...$this->limits(), $this->key(), $this->front()];
+        $results = [$this->php(), ...$this->extensions(), ...$this->directories($repair), ...$this->limits(), $this->key(), $this->front()];
 
         if ($withDatabase) {
             $results[] = $this->database();
@@ -112,22 +112,27 @@ class EnvironmentCheck
     /**
      * @return list<array{label: string, status: 'ok'|'fail', detail: string}>
      */
-    public function directories(): array
+    public function directories(bool $repair = false): array
     {
         $results = [];
 
         foreach (['storage', 'storage/app/private', 'storage/framework', 'storage/logs', 'bootstrap/cache'] as $relative) {
             $path = base_path($relative);
 
-            if (! is_dir($path) && ! @mkdir($path, 0775, true)) {
-                $results[] = ['label' => "Dossier {$relative}", 'status' => 'fail', 'detail' => 'absent et impossible à créer'];
+            // M10 : sans $repair (patrimoine:verifier), rien n'est créé ni écrit.
+            if (! is_dir($path) && ! ($repair && @mkdir($path, 0775, true))) {
+                $results[] = ['label' => "Dossier {$relative}", 'status' => 'fail', 'detail' => $repair ? 'absent et impossible à créer' : 'absent : relancez install.ps1'];
 
                 continue;
             }
 
-            $probe = $path.DIRECTORY_SEPARATOR.'.ecriture-'.bin2hex(random_bytes(3));
-            $writable = @file_put_contents($probe, 'x') !== false;
-            @unlink($probe);
+            if ($repair) {
+                $probe = $path.DIRECTORY_SEPARATOR.'.ecriture-'.bin2hex(random_bytes(3));
+                $writable = @file_put_contents($probe, 'x') !== false;
+                @unlink($probe);
+            } else {
+                $writable = is_writable($path);
+            }
 
             $results[] = [
                 'label' => "Dossier {$relative}",

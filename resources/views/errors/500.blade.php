@@ -5,7 +5,7 @@
 @section('titre', "Une erreur est survenue")
 
 @section('contenu')
-    <p class="etat-texte">L'opération n'a pas pu être menée à bien. Vos données n'ont pas été modifiées par cette demande. Réessayez ; si le problème persiste, prévenez l'administrateur en lui indiquant ce que vous faisiez.</p>
+    <p class="etat-texte">L'opération n'a pas pu être menée à bien. Réessayez ; si le problème persiste, prévenez l'administrateur en lui indiquant ce que vous faisiez.</p>
 @endsection
 
 @section('actions')

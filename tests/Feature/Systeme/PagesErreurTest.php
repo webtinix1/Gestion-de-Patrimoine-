@@ -1,9 +1,9 @@
 <?php
 
-use App\Models\User;
-use App\Support\DefaultRoles;
-use Database\Seeders\RolesSeeder;
+use Illuminate\Routing\Exceptions\InvalidSignatureException;
 use Illuminate\Session\TokenMismatchException;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
@@ -57,16 +57,23 @@ it('ne divulgue aucun détail technique sur la page 500', function () {
         ->assertDontSee('Whoops');
 });
 
-it('affiche sur la page 403 le rôle de l\'utilisateur connecté et le message métier en français', function () {
-    $this->seed(RolesSeeder::class);
-    $user = User::factory()->create();
-    $user->assignRole(DefaultRoles::DEPARTMENT_HEAD);
+it('affiche sur la page 403 le message métier en français, sans lire la base ni la session', function () {
+    DB::enableQueryLog();
 
-    $this->actingAs($user)
-        ->get('/_t/403-message')
+    $this->get('/_t/403-message')
         ->assertForbidden()
-        ->assertSee('Responsable de département')
         ->assertSee('Seul le comptable peut valider cette sortie.');
+
+    expect(DB::getQueryLog())->toBe([]);
+});
+
+it('n\'affiche pas « Invalid signature. » ni un autre message anglais sur la page 403', function () {
+    Route::middleware('web')->get('/_t/signature', fn () => throw new InvalidSignatureException);
+
+    $this->get('/_t/signature')
+        ->assertForbidden()
+        ->assertDontSee('Invalid signature')
+        ->assertSee('Contactez l\'administrateur', false);
 });
 
 it('n\'affiche pas le message anglais par défaut sur la page 403', function () {
@@ -87,8 +94,19 @@ it('ne charge aucune ressource externe sur les pages d\'erreur', function (strin
     expect($externes->all())->toBe([]);
 })->with(['/inconnu', '/_t/403', '/_t/419', '/_t/500', '/_t/503']);
 
-it('rend l\'erreur 503 du mode maintenance avec la page française', function () {
-    $this->get('/_t/503')->assertStatus(503)->assertSee('Réessayer');
+it('rend la page française 503 en mode maintenance réel', function () {
+    Artisan::call('down');
+
+    try {
+        $this->get('/admin/login')->assertStatus(503)->assertSee('Maintenance en cours')->assertSee('Réessayer');
+    } finally {
+        Artisan::call('up');
+    }
+});
+
+it('répond en français aux erreurs JSON', function () {
+    $this->getJson('/_t/500')->assertStatus(500)->assertExactJson(['message' => 'Une erreur est survenue.']);
+    $this->getJson('/inconnu-json')->assertNotFound()->assertJson(['message' => 'Ressource introuvable.']);
 });
 
 it('place les fenêtres d\'état en français dans le panneau, y compris sur la connexion', function () {

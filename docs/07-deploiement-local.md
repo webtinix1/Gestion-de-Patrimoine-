@@ -58,7 +58,12 @@ Le script, dans l'ordre :
 4. lance `php artisan patrimoine:installer` : contrôles (PHP, extensions, dossiers, clé), base (créée si absente), migrations, référentiels de base (rôles et droits, états, catégories, types de document, formats d'étiquettes ; les valeurs déjà modifiées ne sont jamais écrasées), puis **création du premier administrateur** : identifiant, prénom, nom, mot de passe saisi deux fois sans écho (12 caractères minimum, lettres et chiffres). Le mot de passe n'est ni écrit dans un fichier, ni affiché, ni passé en argument. Si un administrateur existe déjà, aucun compte n'est créé ;
 5. lance `php artisan optimize` (met en cache configuration, routes, vues).
 
-Options utiles : `-Demo` charge en plus la démonstration (comptes à mot de passe connu : **jamais sur le serveur réel** ; la commande la refuse en production sans `--force` et sur une base qui contient déjà des comptes réels) ; `-TachePlanifiee` enregistre la tâche Windows ci-dessous (PowerShell en administrateur) ; `-MotDePasseStdin -Identifiant ... -Prenom ... -Nom ...` pour un déploiement scripté (le mot de passe est lu sur l'entrée standard).
+Options utiles :
+
+- `-Demo` charge en plus la démonstration (comptes à mot de passe connu : **jamais sur le serveur réel**). Un `.env` neuf est alors écrit en `APP_ENV=local` (la démonstration est refusée en production). La commande la refuse aussi dès que la base contient un compte ou des données (la démonstration réécrit le compte `admin` : elle ne peut donc jamais toucher un vrai administrateur) ; pour la recharger, repartir d'une base vide.
+- `-TachePlanifiee` enregistre la tâche Windows de la section 5 (PowerShell en administrateur).
+- `-MotDePasseStdin -Identifiant ... -Prenom ... -Nom ...` pour un déploiement scripté. Le script lit alors toute l'entrée standard, **une valeur par ligne, dans cet ordre** : 1) le mot de passe de la base, seulement si `.env` est créé et que la base n'est pas SQLite ; 2) le mot de passe du premier administrateur, seulement si aucun administrateur n'existe. Exemple : `"MotDePasseBase`nMotDePasseAdmin" | .\install.ps1 -MotDePasseStdin -Identifiant admin`. Éviter les caractères accentués dans ces mots de passe (le tube de Windows PowerShell 5.1 peut les altérer).
+- Après toute modification ultérieure de `.env`, relancer `php artisan optimize` : la configuration est mise en cache.
 
 À tout moment : `php artisan patrimoine:verifier` rejoue les contrôles sans rien modifier (les valeurs `upload_max_filesize` et `post_max_size` affichées sont celles de PHP en ligne de commande ; vérifier celles d'Apache dans le php.ini de WAMP).
 
@@ -94,11 +99,14 @@ Vérifier que `mod_rewrite` est activé (WAMP > Apache > Modules Apache). Ne pas
 Le planificateur de Laravel (alertes et rappels) ne tourne que si Windows l'appelle chaque minute. Avec `install.ps1 -TachePlanifiee`, ou à la main (PowerShell en administrateur) :
 
 ```powershell
-schtasks /Create /TN "Patrimoine - planificateur" /SC MINUTE /MO 1 /RU SYSTEM /F `
-  /TR "\"C:\wamp64\bin\php\php8.4.0\php.exe\" \"C:\patrimoine\artisan\" schedule:run"
+$php = 'C:\wamp64\bin\php\php8.4.0\php.exe'
+$action = New-ScheduledTaskAction -Execute $php -Argument '"C:\patrimoine\artisan" schedule:run' -WorkingDirectory 'C:\patrimoine'
+$trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 1) -RepetitionDuration (New-TimeSpan -Days 3650)
+$principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
+Register-ScheduledTask -TaskName 'Patrimoine - planificateur' -Action $action -Trigger $trigger -Principal $principal -Force
 ```
 
-Remplacer le chemin de PHP par celui de la version utilisée (`php.exe` en ligne de commande). Vérification : `schtasks /Query /TN "Patrimoine - planificateur"`, puis `php artisan schedule:list`. Aucun service de file d'attente n'est requis à ce jour : les exports et PDF sont produits dans la requête (`QUEUE_CONNECTION=database` reste prêt si un lot ultérieur en a besoin).
+L'exécutable et ses arguments sont séparés, ce qui garde correctement cités les chemins contenant des espaces (une commande `schtasks /TR` unique les casse). Remplacer le chemin de PHP par celui de la version utilisée (`php.exe` en ligne de commande). Vérification : `Get-ScheduledTask 'Patrimoine - planificateur'`, puis `php artisan schedule:list`. Aucun service de file d'attente n'est requis à ce jour : les exports et PDF sont produits dans la requête (`QUEUE_CONNECTION=database` reste prêt si un lot ultérieur en a besoin).
 
 ### 6. Démarrage automatique
 
@@ -120,7 +128,7 @@ Commande manuelle, à lancer chaque semaine (ou avant toute mise à jour) :
 php artisan patrimoine:sauvegarder E:\Sauvegardes
 ```
 
-- La destination doit **exister** et être accessible en écriture (disque externe branché, partage réseau). Sinon, la commande refuse. Elle refuse aussi un dossier situé dans `public\` ou dans les fichiers privés.
+- La destination doit **exister** et être accessible en écriture (disque externe branché, partage réseau). Sinon, la commande refuse. Elle refuse aussi un dossier situé dans le dossier de l'application (public, fichiers privés, etc.).
 - Elle crée un dossier daté `E:\Sauvegardes\patrimoine-20261028-143015\` contenant `base\dump.sql` (export MySQL ou MariaDB par `mysqldump`, trouvé automatiquement dans WAMP ; sinon `--bin=C:\wamp64\bin\mariadb\mariadb11.5.2\bin`), `fichiers\` (copie de `storage\app\private` : photos, documents) et `manifest.json` (taille et somme SHA-256 de chaque fichier).
 - La sauvegarde est **relue et contrôlée** avant d'être annoncée réussie. En cas d'échec, le dossier partiel est retiré et la commande se termine en erreur : ne jamais considérer comme sauvegarde un dossier sans le message « Sauvegarde terminée et contrôlée ».
 - Elle **ne contient pas** le fichier `.env` (clé de l'application, mot de passe de la base). En garder une copie à part. Elle n'est pas chiffrée : ranger le disque externe en lieu sûr.
@@ -130,14 +138,14 @@ php artisan patrimoine:sauvegarder E:\Sauvegardes
 
 Prévue pour un incident (base corrompue, disque remplacé, mauvaise manipulation). **Elle remplace les données actuelles.**
 
-1. Mettre l'application en maintenance : `php artisan down`.
-2. Sur un nouveau poste : refaire l'installation (sections 1 à 4, sans `-Demo`) avec le `.env` conservé, puis continuer.
+1. Sur un nouveau poste seulement : refaire d'abord l'installation (sections 1 à 4, sans `-Demo`) avec le `.env` conservé.
+2. Mettre l'application en maintenance : `php artisan down`. **La commande refuse de restaurer si l'application n'est pas en maintenance** (personne ne doit écrire pendant l'opération).
 3. Lancer (la source est le dossier daté) :
    ```powershell
    php artisan patrimoine:restaurer E:\Sauvegardes\patrimoine-20261028-143015
    ```
    La commande contrôle d'abord l'intégrité de la sauvegarde (taille et SHA-256 de chaque fichier) et le type de base, refuse si quelque chose ne correspond pas, affiche la date de la sauvegarde, puis demande de **taper le nom de la base à écraser**. Sans terminal : `--base=<nom>` ; en production, `--force` est exigé en plus.
-4. Avant d'écrire quoi que ce soit, elle sauvegarde l'état actuel à côté de la source (`avant-restauration-AAAAMMJJ-HHMMSS`) et s'arrête si cette sauvegarde échoue. Les fichiers privés actuels sont renommés (`private.avant-restauration-...`), jamais supprimés.
+4. Avant d'écrire quoi que ce soit, elle sauvegarde l'état actuel à côté de la source (`avant-restauration-AAAAMMJJ-HHMMSS`) et s'arrête si cette sauvegarde échoue. Les fichiers de la sauvegarde sont copiés et recontrôlés dans un dossier de transit, puis échangés avec `storage\app\private` (l'ancien dossier est renommé `private.avant-restauration-...`, jamais supprimé). Seuls les fichiers listés au manifeste sont restaurés ; un fichier en trop dans la sauvegarde la fait refuser. Si l'import de la base échoue en cours de route, la commande rejoue automatiquement la sauvegarde de sécurité et remet les anciens fichiers ; si ce rejeu échoue aussi, elle affiche le message « Base partiellement restaurée » et la commande exacte à lancer pour revenir à l'état précédent.
 5. `php artisan optimize:clear`, `php artisan optimize`, `php artisan up`, puis ouvrir l'application et contrôler un bien récent et une pièce jointe.
 
 À savoir : restaurer vers la **même version** de l'application que la sauvegarde. Les tables qui n'existent pas dans la sauvegarde (version plus récente) ne sont pas supprimées ; lancer `php artisan migrate --force` au besoin. Pour revenir en arrière après une restauration, restaurer le dossier `avant-restauration-...`.
@@ -148,10 +156,10 @@ Si la restauration automatique est impossible (outil `mysql` introuvable), proc�
 
 Nouveau paquet préparé sur une machine connectée (avec `vendor\` et `public\build\`), copié sur le serveur :
 
-1. `php artisan patrimoine:sauvegarder E:\Sauvegardes` et vérifier le message de contrôle ;
-2. `php artisan down` ;
+1. `php artisan down` (plus personne n'écrit pendant la sauvegarde) ;
+2. `php artisan patrimoine:sauvegarder E:\Sauvegardes` et vérifier le message de contrôle ;
 3. remplacer les fichiers de l'application **sauf** `.env` et `storage\` ;
 4. `php artisan migrate --force` puis `php artisan optimize` (relancer `install.ps1` est aussi sans risque) ;
 5. `php artisan up`, et ouvrir l'application pour vérifier.
 
-En cas de problème après migration : `php artisan down`, remettre les anciens fichiers, restaurer la sauvegarde du point 1 (section Restauration).
+En cas de problème après migration : l'application est encore en maintenance, remettre les anciens fichiers, restaurer la sauvegarde du point 2 (section Restauration), puis `php artisan optimize:clear`, `php artisan optimize` et `php artisan up`.

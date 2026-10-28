@@ -13,7 +13,15 @@
     var debug = racine.getAttribute('data-debug') === '1';
     var quitte = false;
 
-    window.addEventListener('beforeunload', function () { quitte = true; });
+    var sessionPerdue = false;
+
+    // M8 : « beforeunload » part aussi quand l'utilisateur annule la fermeture ; le drapeau retombe donc vite,
+    // et à chaque retour sur la page (cache avant/arrière).
+    window.addEventListener('beforeunload', function () {
+        quitte = true;
+        setTimeout(function () { quitte = false; }, 2000);
+    });
+    window.addEventListener('pageshow', function () { quitte = false; });
 
     function fenetre(nom) {
         return document.getElementById('etat-systeme-' + nom);
@@ -82,6 +90,14 @@
 
     function brancher() {
         window.Livewire.interceptRequest(function (ctx) {
+            // I8 : la session est perdue, Livewire n'a pas posé son propre drapeau (nous avons empêché sa fenêtre) :
+            // on annule les requêtes suivantes (wire:poll, etc.) jusqu'au rechargement de la page.
+            if (sessionPerdue) {
+                try { ctx.request.cancel(); } catch (e) { /* requête déjà partie */ }
+
+                return;
+            }
+
             ctx.onFailure(function (infos) {
                 var erreur = infos && infos.error;
 
@@ -96,6 +112,9 @@
                 if (!nom || (debug && infos.response.status === 500)) { return; }
 
                 infos.preventDefault();
+
+                if (infos.response.status === 419) { sessionPerdue = true; }
+
                 ouvrir(nom);
             });
         });

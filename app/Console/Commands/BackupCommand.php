@@ -18,6 +18,8 @@ class BackupCommand extends Command
     public function handle(BackupService $backups): int
     {
         if (! $this->laravel->runningInConsole()) {
+            $this->error('Cette commande est réservée à la ligne de commande (php artisan).');
+
             return self::FAILURE;
         }
 

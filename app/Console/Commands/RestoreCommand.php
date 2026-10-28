@@ -19,6 +19,14 @@ class RestoreCommand extends Command
     public function handle(RestoreService $restore): int
     {
         if (! $this->laravel->runningInConsole()) {
+            $this->error('Cette commande est réservée à la ligne de commande (php artisan).');
+
+            return self::FAILURE;
+        }
+
+        if (! $this->laravel->isDownForMaintenance()) {
+            $this->error('Restauration refusée : l\'application doit être en maintenance pour que personne n\'écrive pendant l\'opération. Lancez php artisan down, puis relancez cette commande.');
+
             return self::FAILURE;
         }
 
@@ -67,7 +75,7 @@ class RestoreCommand extends Command
             $this->line('Anciens fichiers privés conservés dans : '.$result['previous_files']);
         }
 
-        $this->line('Relancez ensuite : php artisan optimize:clear puis php artisan up.');
+        $this->line('Terminez par : php artisan optimize:clear, php artisan optimize, puis php artisan up.');
 
         return self::SUCCESS;
     }

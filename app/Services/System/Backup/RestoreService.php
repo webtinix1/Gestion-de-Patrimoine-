@@ -6,12 +6,12 @@ use FilesystemIterator;
 use Illuminate\Support\Facades\DB;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
-use SplFileInfo;
 use Throwable;
 
 /**
  * Restauration d'une sauvegarde de `BackupService`. Rien n'est détruit : l'état courant est d'abord sauvegardé
- * à côté de la sauvegarde source, et les fichiers privés actuels sont renommés (jamais supprimés).
+ * à côté de la sauvegarde source, les fichiers privés actuels sont renommés (jamais supprimés), les nouveaux
+ * sont préparés dans un dossier de transit avant tout échange, et si la base échoue l'état précédent est remis.
  */
 class RestoreService
 {
@@ -29,7 +29,7 @@ class RestoreService
     }
 
     /**
-     * Vérifie la sauvegarde (intégrité, type de base) sans rien modifier.
+     * Vérifie la sauvegarde (intégrité, fichiers en trop, type de base) sans rien modifier.
      *
      * @return array<string, mixed>
      */
@@ -68,19 +68,106 @@ class RestoreService
         // Filet de sécurité : l'état courant est sauvegardé avant toute écriture. S'il échoue, on s'arrête.
         $safety = $this->backups->create(dirname($dir), $binDir, 'avant-restauration');
 
+        $root = $this->normalize($this->backups->privateRoot());
+        $stamp = now()->format('Ymd-His');
+        $transit = $root.'.transit-'.$stamp;
+
+        try {
+            $this->prepareTransit($dir, $manifest, $transit);
+            $previous = $this->swapFiles($root, $transit, $stamp);
+        } catch (Throwable $e) {
+            $this->removeTree($transit);
+
+            throw $e instanceof BackupException ? $e : new BackupException('Préparation des fichiers impossible : '.$e->getMessage(), 0, $e);
+        }
+
         try {
             $this->restoreDatabase($dir, $manifest, $binDir);
         } catch (Throwable $e) {
-            throw new BackupException(
-                'La restauration de la base a échoué : '.$e->getMessage()." L'état précédent est conservé dans {$safety['path']}.",
-                0,
-                $e,
-            );
+            $this->rollback($root, $previous, $stamp);
+
+            throw new BackupException($this->failureMessage($e, $safety['path'], $binDir), 0, $e);
         }
 
-        $previous = $this->restoreFiles($dir);
-
         return ['safety' => $safety['path'], 'previous_files' => $previous];
+    }
+
+    /**
+     * Copie, en les recontrôlant, les seuls fichiers listés au manifeste dans un dossier de transit.
+     *
+     * @param  array<string, mixed>  $manifest
+     */
+    private function prepareTransit(string $dir, array $manifest, string $transit): void
+    {
+        if (file_exists($transit)) {
+            throw new BackupException("Le dossier de transit existe déjà : {$transit}.");
+        }
+
+        mkdir($transit, 0775, true);
+
+        foreach ($manifest['files'] as $entry) {
+            $relative = substr((string) $entry['path'], strlen('fichiers/'));
+            $source = $dir.DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, (string) $entry['path']);
+            $target = $transit.DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $relative);
+
+            if (! is_dir(dirname($target))) {
+                mkdir(dirname($target), 0775, true);
+            }
+
+            if (! copy($source, $target) || hash_file('sha256', $target) !== $entry['sha256']) {
+                throw new BackupException("Copie des fichiers impossible ou altérée : {$relative}. Rien n'a été modifié.");
+            }
+        }
+    }
+
+    private function swapFiles(string $root, string $transit, string $stamp): ?string
+    {
+        $previous = null;
+
+        if (is_dir($root)) {
+            $previous = $root.'.avant-restauration-'.$stamp;
+
+            if (! @rename($root, $previous)) {
+                throw new BackupException("Impossible de mettre de côté les fichiers actuels ({$root}) : fermez les programmes qui les utilisent et recommencez. Rien n'a été modifié.");
+            }
+        }
+
+        if (! @rename($transit, $root)) {
+            if ($previous !== null) {
+                @rename($previous, $root);
+            }
+
+            throw new BackupException("Impossible de mettre en place les fichiers restaurés ({$root}). Les fichiers actuels ont été remis en place.");
+        }
+
+        return $previous;
+    }
+
+    private function rollback(string $root, ?string $previous, string $stamp): void
+    {
+        if ($previous === null) {
+            return;
+        }
+
+        if (is_dir($root)) {
+            @rename($root, $root.'.echec-restauration-'.$stamp);
+        }
+
+        @rename($previous, $root);
+    }
+
+    private function failureMessage(Throwable $e, string $safetyPath, ?string $binDir): string
+    {
+        $base = 'La restauration de la base a échoué : '.$e->getMessage().' ';
+
+        try {
+            $manifest = $this->backups->manifest($safetyPath);
+            $this->restoreDatabase($safetyPath, $manifest, $binDir);
+
+            return $base.'L\'état précédent (base et fichiers) a été remis en place automatiquement.';
+        } catch (Throwable) {
+            return $base."Base partiellement restaurée, fichiers précédents remis en place : relancez php artisan patrimoine:restaurer \"{$safetyPath}\" --base=".$this->targetName().' pour revenir à l\'état précédent.';
+        }
     }
 
     /**
@@ -94,8 +181,22 @@ class RestoreService
             $target = $this->database->sqlitePath();
             DB::disconnect($this->database->connectionName());
             $temporary = $target.'.restauration';
-            copy($file, $temporary);
-            rename($temporary, $target);
+            @unlink($temporary);
+
+            if (! copy($file, $temporary)) {
+                throw new BackupException('Copie du fichier de base impossible.');
+            }
+
+            // M4 : les journaux de l'ancienne base ne doivent pas être rejoués sur la base restaurée.
+            foreach (['-journal', '-wal', '-shm'] as $suffix) {
+                @unlink($target.$suffix);
+            }
+
+            if (! @rename($temporary, $target)) {
+                @unlink($temporary);
+
+                throw new BackupException('Remplacement du fichier de base impossible (fichier utilisé par un autre programme ?).');
+            }
 
             return;
         }
@@ -103,40 +204,26 @@ class RestoreService
         $this->database->load($file, $binDir);
     }
 
-    private function restoreFiles(string $dir): ?string
+    private function normalize(string $path): string
     {
-        $root = $this->backups->privateRoot();
-        $previous = null;
+        return rtrim(str_replace(['/', '\\'], DIRECTORY_SEPARATOR, realpath($path) ?: $path), DIRECTORY_SEPARATOR);
+    }
 
-        if (is_dir($root)) {
-            $previous = $root.'.avant-restauration-'.now()->format('Ymd-His');
-
-            if (! rename($root, $previous)) {
-                throw new BackupException("Impossible de mettre de côté les fichiers actuels ({$root}). La base a déjà été restaurée : fermez les programmes qui utilisent ces fichiers et recommencez.");
-            }
+    private function removeTree(string $dir): void
+    {
+        if (! is_dir($dir)) {
+            return;
         }
 
-        mkdir($root, 0775, true);
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::CHILD_FIRST,
+        );
 
-        $source = $dir.DIRECTORY_SEPARATOR.'fichiers';
-        $length = strlen($source) + 1;
-        $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($source, FilesystemIterator::SKIP_DOTS));
-
-        /** @var SplFileInfo $file */
-        foreach ($iterator as $file) {
-            if (! $file->isFile()) {
-                continue;
-            }
-
-            $target = $root.DIRECTORY_SEPARATOR.substr($file->getPathname(), $length);
-
-            if (! is_dir(dirname($target))) {
-                mkdir(dirname($target), 0775, true);
-            }
-
-            copy($file->getPathname(), $target);
+        foreach ($iterator as $item) {
+            $item->isDir() && ! $item->isLink() ? @rmdir($item->getPathname()) : @unlink($item->getPathname());
         }
 
-        return $previous;
+        @rmdir($dir);
     }
 }

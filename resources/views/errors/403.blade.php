@@ -1,11 +1,13 @@
 @php
-    $role = null;
-    try {
-        $role = auth()->user()?->getRoleNames()->first();
-    } catch (Throwable) {
+    // Aucune lecture de la session ni de la base : cette page doit s'afficher même si elles sont en panne.
+    $detail = null;
+
+    if ($exception instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface
+        && ! $exception instanceof \Illuminate\Routing\Exceptions\InvalidSignatureException) {
+        $message = trim($exception->getMessage());
+        $generic = $message === '' || str_contains(strtolower($message), 'unauthorized') || str_contains(strtolower($message), 'forbidden');
+        $detail = $generic ? null : $message;
     }
-    $detail = trim((string) ($exception?->getMessage() ?? ''));
-    $detail = $detail === '' || str_contains(strtolower($detail), 'unauthorized') || str_contains(strtolower($detail), 'forbidden') ? null : $detail;
 @endphp
 @extends('errors.shell')
 
@@ -14,14 +16,7 @@
 @section('titre', "Vous n'avez pas accès à cette page")
 
 @section('contenu')
-    <p class="etat-texte">
-        @if ($role)
-            Votre rôle « <strong>{{ $role }}</strong> » ne permet pas cette opération.
-        @else
-            Cette page ou cette action n'est pas autorisée pour votre compte.
-        @endif
-        Contactez l'administrateur si besoin.
-    </p>
+    <p class="etat-texte">Cette page ou cette action n'est pas autorisée pour votre compte. Contactez l'administrateur si besoin.</p>
     @if ($detail)
         <p class="etat-texte">{{ $detail }}</p>
     @endif

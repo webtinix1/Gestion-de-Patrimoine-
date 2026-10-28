@@ -48,7 +48,7 @@
     <dialog id="etat-systeme-erreur" class="etat-fenetre" aria-labelledby="etat-erreur-titre">
         <div class="etat-carte">
             <h2 id="etat-erreur-titre" class="etat-titre">Une erreur est survenue</h2>
-            <p class="etat-texte">L'opération n'a pas pu être menée à bien et n'a pas été enregistrée. Réessayez ; si le problème persiste, prévenez l'administrateur en lui indiquant ce que vous faisiez.</p>
+            <p class="etat-texte">L'opération n'a pas pu être menée à bien. Vérifiez son résultat avant de la refaire ; si le problème persiste, prévenez l'administrateur en lui indiquant ce que vous faisiez.</p>
             <div class="etat-actions">
                 <button type="button" class="etat-btn" data-action="fermer">Fermer</button>
                 <button type="button" class="etat-btn primaire" data-action="recharger">Recharger la page</button>
