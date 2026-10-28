@@ -11,7 +11,7 @@ Deux parties : la **recette technique** faite par Claude Code le 28/10/2026 sur 
 - **Tests automatisés** : suite Pest complète lancée une fois, avec les variantes MariaDB des tests de concurrence activées (`CONCURRENCE_DB_DRIVER=mariadb`, base `recette`). Résultat en fin de document.
 - **Application réelle** : `php artisan migrate:fresh --seed` (base SQLite de démonstration), serveur PHP sur `127.0.0.1:8123`, parcours dans le navigateur intégré avec les comptes `admin` (administrateur), `e.mbemba` (responsable de département) ; exports produits par un script qui appelle les actions de l'application avec `a.okemba` (gestionnaire) et `m.loubaki` (comptable), puis relus (Excel par PhpSpreadsheet, PDF par `tests/Support/PdfInspector`).
 - **Statuts** : **Conforme** (prouvé ici, sans réserve) ; **Conforme avec réserve** (prouvé ici, mais dépend d'une hypothèse de `docs/06` non tranchée ou d'un essai sur le matériel du client) ; **Non conforme** (défaut qui empêche le critère) ; **Non vérifiable ici** (rien ne peut le prouver sur ce poste). Un critère non prouvé n'est pas coché.
-- Données créées pendant la recette (base de démonstration locale, non versionnée) : biens PAT-001249 (amortissable) et PAT-001250 (non amortissable), deux transferts de PAT-001249, un compte `r.recette`, le droit « exporter les biens » ajouté au rôle Responsable de département, une lecture d'inventaire sur INV-2026-005.
+- Données créées pendant la recette (base de démonstration locale, non versionnée) : biens PAT-001249 (amortissable) et PAT-001250 (non amortissable), deux transferts de PAT-001249, un compte `r.recette`, le droit « exporter les biens » ajouté au rôle Responsable de département, une lecture d'inventaire sur INV-2026-005, le prêt PRT-2026-068 et son retour, l'intervention MNT-2026-053, la sortie SRT-2026-004 (réforme de PAT-001250).
 
 ### Critère 1 · Déploiement sur un serveur local ou un ordinateur configuré comme serveur
 
@@ -70,7 +70,12 @@ Deux parties : la **recette technique** faite par Claude Code le 28/10/2026 sur 
 
 ### Critère 7 · Chaque bien reçoit automatiquement un identifiant unique
 
-- **Statut** : voir la mise à jour avec le résultat de la suite (section suivante).
+- **Statut : Conforme avec réserve.**
+- **Preuves** :
+  - À l'écran : PAT-001249 puis PAT-001250 attribués à l'enregistrement (compteur de la démonstration aligné sur PAT-001248) ; le formulaire indique « Attribué à l'enregistrement… ne change jamais et n'est jamais réutilisé ».
+  - **Concurrence en vrais processus PHP parallèles, sur SQLite et sur MariaDB 11.5.2** (base `recette`) : `tests/Feature/Biens/NumeroPatrimonialConcurrenceTest.php` « génère des numéros uniques et consécutifs quand plusieurs postes demandent un numéro en même temps » (6 processus × 15 numéros) et « crée des biens simultanément sans doublon ni échec » (6 × 10 créations) : passés (variante MariaDB : 40,5 s et 39,1 s) ; `ValidationAcquisitionConcurrenceTest.php` (double validation simultanée, numéros consécutifs par acquisition) : passés sur SQLite et MariaDB. Seules les variantes MySQL sont ignorées (aucun serveur MySQL jetable).
+  - `NumeroPatrimonialTest.php` : numéro non modifiable (RG-04), jamais réattribué même après une sortie, index unique en base, trois formats (Q10).
+- **Réserves** : format `PAT-000001` par défaut tant que Q10 n'est pas tranchée (changement sans effet sur les numéros déjà attribués). **Test humain** de la grille : deux postes qui créent un bien en même temps sur le serveur du client (MySQL ou MariaDB selon Q19).
 
 ### Critère 8 · Une étiquette peut être générée pour un bien
 
@@ -199,6 +204,76 @@ Deux parties : la **recette technique** faite par Claude Code le 28/10/2026 sur 
   - Conservation : `config/activitylog.php` garde les entrées 36 500 jours ; aucune purge planifiée (`routes/console.php` ne planifie que les alertes) ; modèle `App\Models\Activity` qui refuse modification et suppression (RG-72) ; aucune action de suppression à l'écran.
   - Tests `tests/Feature/Acces/JournalTest.php` et les tests de journal de chaque module.
 - **Réserves** : défaut D2 (mineur) : les entrées automatiques « Modification d'une fiche » montrent des noms de colonnes et des valeurs techniques. Le journal est conservé en base : il n'est protégé d'une panne que par la sauvegarde (Q20, option hors V1).
+
+### Critère 22 · Plusieurs utilisateurs peuvent travailler sur la même base de données
+
+- **Statut : Conforme avec réserve.**
+- **Preuves** :
+  - À l'écran, RG-86 : la fiche PAT-001250 ouverte en modification dans deux onglets ; enregistrement dans le premier (marque « Rapid (onglet 1) »), puis dans le second (modèle modifié) : refus avec « Cette fiche a été modifiée entre-temps. Cette fiche a été enregistrée par Administrateur Démo à 17:29 depuis son ouverture. Rechargez la page… » ; en base, la marque du premier onglet est conservée, le modèle du second n'est pas écrit (aucun écrasement silencieux).
+  - Sessions simultanées de plusieurs comptes sur la même base pendant la recette (`admin`, `e.mbemba`, `a.okemba`), chacun limité à son périmètre (`e.mbemba` : 65 biens de Louange, fiche d'un autre département en 404).
+  - Tests RG-86 de chaque module (fiche, transfert unitaire et groupé, acquisition, inventaire, prêt, maintenance, sortie) et **tests en processus parallèles passés sur SQLite et MariaDB** : numéros de biens, validation d'acquisition, saisie simultanée d'inventaire, prêts et interventions simultanés (`OperationsConcurrenceTest.php`), sorties simultanées et clôture d'exercice (`SortieConcurrenceTest.php`) ; voir le résultat de la suite.
+- **Réserves** : RG-86 parle d'un contrôle « par date de mise à jour » ; l'application utilise un numéro de version (plus sûr, détecte deux enregistrements dans la même seconde). **Test humain** : deux utilisateurs sur deux postes réels modifient la même fiche ; charge de 10 utilisateurs simultanés (Q18) sur le serveur du client.
+
+### Résultat de la suite de tests
+
+- Commande : `pest` (suite complète), variables `CONCURRENCE_DB_*` pointant sur MariaDB 11.5.2 (base `recette`).
+- **975 tests : 960 réussis, 15 ignorés, 4 « risky », 0 échec, 8 049 assertions, 66 min 32 s** (poste chargé par d'autres travaux). Les tests ignorés sont les variantes MySQL des tests de concurrence (aucun serveur MySQL jetable) ; toutes les variantes MariaDB ont tourné.
+- Relance ciblée `pest --filter=Concurrence` (sortie détaillée) pour nommer les tests : voir les critères 7, 13 et 22.
+- Unitaires seuls (`pest tests/Unit`) : 29 tests, 297 assertions, passés.
+- Larastan et Pint n'ont pas été relancés par la recette (verts au lot 12 selon `docs/08`).
+
+## Synthèse
+
+### Statuts
+
+| Statut | Nombre | Critères |
+|---|---|---|
+| Conforme | 5 | 5, 11, 12, 16, 18 |
+| Conforme avec réserve | 16 | 1, 3, 4, 6, 7, 8, 9, 10, 13, 14, 15, 17, 19, 20, 21, 22 |
+| Non conforme | 0 | — |
+| Non vérifiable ici | 1 | 2 |
+
+Aucun critère n'est bloqué par un défaut de l'application. Les réserves tiennent à trois choses : des essais sur le matériel et le réseau du client, la validation comptable des cas d'amortissement, et des hypothèses de `docs/06` encore ouvertes.
+
+### Défauts
+
+Aucun défaut **bloquant**.
+
+**Importants**
+
+- **D1 · Montants nuls exportés en cellules vides dans tous les exports Excel.** Les classes `app/Exports/ReportExport.php:22`, `DepreciationScheduleExport.php:20`, `AssetsExport.php:21` et `InventoryReportExport.php:22` n'implémentent pas `WithStrictNullComparison` de Laravel Excel, qui convertit alors `0` en cellule vide. Scénario : exporter en Excel le plan de PAT-000125 : la VNC 2027 (0) est vide alors que le PDF affiche « 0 » ; exporter le « Tableau des immobilisations » : 74 lignes sur 228 ont un cumul ou une VNC vide (biens totalement amortis, biens sortis). Les sommes restent justes, mais un état comptable remis au comptable ne doit pas confondre « zéro » et « sans objet ». Correction simple (ajouter l'interface), à couvrir par un test qui relit une cellule à 0.
+
+**Mineurs**
+
+- **D2 · Journal : entrées « Modification d'une fiche » aux valeurs techniques.** `app/Models/Asset.php:259-264` journalise tous les champs remplissables bruts et `app/Filament/Resources/Activities/ActivityResource.php:254-259` n'a de libellé que pour les clés de `validation.attributes`. Scénario : transférer PAT-001249 : en plus de l'entrée « Transfert d'un bien » lisible, le journal ajoute « Modification d'une fiche » avec « site : 1 → 2 », « département : 4 → 1 », « assigned since : 2026-10-19T23:00:00.000000Z → … » ; à la création, « asset category id : 6 », « brand ». Identifiants au lieu des noms, date ISO en UTC (le 20/10 local apparaît comme le 19/10 à 23 h), libellés anglais, doublon d'entrée. RG-71 (valeurs avant et après) est respectée, la lisibilité non.
+- **D3 · Texte de développement visible.** `app/Filament/Resources/Assets/Schemas/AssetForm.php:299` : « Le plan détaillé sera calculé au lot 7. » s'affiche sous la section Immobilisation du formulaire d'un bien amortissable, alors que le plan existe.
+- **D4 · `docs/06` QL12-6 périmée.** La question dit qu'aucune tâche n'est planifiée ; depuis le lot 11, `routes/console.php` planifie `patrimoine:calculer-alertes` toutes les heures. Sans la tâche Windows `schedule:run`, les alertes ne sont plus recalculées. `docs/07` §5 le dit bien ; la réponse par défaut de QL12-6 (« sans effet tant que rien n'est planifié ») est à corriger et la tâche planifiée à installer d'office.
+- **D5 · Démonstration incohérente dans le temps.** `database/seeders/InventoriesDemoSeeder.php` : INV-2026-004, du 22/09 au 30/09/2026 et clôturé, compte parmi ses manquants PAT-001248, acquis le 22/10/2026 ; ses régularisations sont datées du jour du chargement (« Retrouvé le 28/10/2026 » pour une observation « retrouvé le 03/10 »). Sans effet sur une installation réelle, mais visible en formation et en recette avec le client.
+
+**Observations (pas des défauts)**
+
+- RG-30 : une catégorie « oui » rend amortissable un bien sous le seuil (`app/Services/DepreciabilityResolver.php:25-27`). C'est conforme à `docs/03` (oui / selon seuil / non), mais le texte de RG-30 lit « et si son prix atteint le seuil » : à faire trancher avec Q2 et Q3.
+- Champs de l'en-tête PDF et étiquettes : « [Nom de l'Église] » et « [SIGLE] » tant que Q15 n'est pas tranchée, et l'écran E41 de paramétrage n'existe pas (réglage en base).
+- PDF de rapport d'environ 0,9 Mo, même pour une page (police DejaVu incluse en entier).
+- Lien de police Filament `fonts/filament/filament/inter\index.css` avec une barre oblique inverse : servi sur Windows (200), à revérifier sur un serveur Linux (Q19).
+
+### Tests humains restants
+
+1. Installation sur le PC serveur du client, poste vierge, avec `install.ps1`, MariaDB ou MySQL, hôte virtuel, tâche planifiée `-TachePlanifiee` (installée d'office, D4), démarrage automatique (critère 1).
+2. Connexion depuis 3 postes du réseau local, pare-feu, `APP_URL` (critères 2, 3).
+3. Recette entière câble Internet débranché (critère 4).
+4. Impression d'une étiquette et d'une planche de 24 sur l'imprimante et la planche du client, décalage éventuel (QL4-2), lisibilité du texte de 5,5 pt ; rouleau si une imprimante d'étiquettes est retenue (critères 8, 9).
+5. Lecture des étiquettes imprimées avec la douchette du client (2D pour le QR code), dans « Recherche par code » et dans la saisie d'inventaire, lectures rapides en série (critères 10, 13).
+6. Deux postes qui créent un bien en même temps, deux utilisateurs qui modifient la même fiche, deux postes sur le même inventaire (critères 7, 13, 22).
+7. Comparaison avec le calcul du comptable sur 3 biens réels, signature des 8 cas (critères 17, 19).
+8. Impression du PDF d'un plan et des rapports (critères 15, 20).
+9. Hors critères mais cités par `docs/08` : fenêtres d'état du navigateur (serveur coupé, session expirée, maintenance), sauvegarde et restauration sur un vrai disque externe.
+
+### Questions du client qui bloquent la mise en production
+
+- **Comptable** : Q9 (signature des 8 cas de `tests/Fixtures/amortissements.json`), Q1 (prorata), Q2 (seuil) et l'interprétation de RG-30, Q3 et Q23 (durées et comptes SYSCOHADA par catégorie), Q4 (dégressif), Q9.1 à Q9.12, Q9.12 / QL10-3 (sortie antidatée), QL11-6 (définition des chiffres du tableau de bord).
+- **Administration** : Q14 (sites, départements, services, locaux réels), Q13 (reprise de l'existant : volume, format, saisie), Q15 (nom, sigle, logo : sans réponse, étiquettes et PDF portent des marques provisoires), Q16 (planche, imprimante, douchettes 2D), Q19 (serveur Windows ou Linux), Q17 et Q18 (accès des autres sites, nombre d'utilisateurs simultanés), Q20 et QL12-3 à QL12-5 (sauvegarde : fréquence, disque, conservation), QL11-1 (rapports du responsable de département).
+- Les autres questions de `docs/06` ont une valeur par défaut prudente et réversible par configuration : elles ne bloquent pas la mise en production mais doivent être relues avec l'Église.
 
 ## Grille de recette avec le client
 
