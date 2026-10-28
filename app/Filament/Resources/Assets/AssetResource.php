@@ -8,6 +8,8 @@ use App\Filament\Resources\Assets\Pages\EditAsset;
 use App\Filament\Resources\Assets\Pages\ListAssets;
 use App\Filament\Resources\Assets\Pages\ViewAsset;
 use App\Filament\Resources\Assets\RelationManagers\DocumentsRelationManager;
+use App\Filament\Resources\Assets\RelationManagers\LoansRelationManager;
+use App\Filament\Resources\Assets\RelationManagers\MaintenanceJobsRelationManager;
 use App\Filament\Resources\Assets\RelationManagers\MovementsRelationManager;
 use App\Filament\Resources\Assets\Schemas\AssetForm;
 use App\Filament\Resources\Assets\Schemas\AssetInfolist;
@@ -78,6 +80,8 @@ class AssetResource extends Resource
     {
         return [
             MovementsRelationManager::class,
+            MaintenanceJobsRelationManager::class,
+            LoansRelationManager::class,
             DocumentsRelationManager::class,
         ];
     }
