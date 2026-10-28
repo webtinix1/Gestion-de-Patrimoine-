@@ -75,6 +75,8 @@ Noms techniques en anglais, libellés d'interface en français. Toutes les table
 
 **inventory_lines** : `inventory_id`, `asset_id` (null si non enregistré), `expected` (bool), snapshot attendu (`expected_room_id`, `expected_department_id`, `expected_condition_id`), constat (`result` Enum : pending, present, missing, other_assignment, condition_mismatch, justified, out_of_scope, unregistered ; `found_room_id`, `found_department_id`, `found_condition_id`), `description` (pour non enregistré), `notes`, `checked_by`, `checked_at`, `resolution` (null, régularisation ultérieure : transfer, condition_update, disposal, created_asset) et `resolution_ref`.
 
+*(lot 9)* **inventories** : `perimeter_site_id` et `perimeter_department_id` (site et département couverts par le périmètre, null = plusieurs ; filtre RG-81), `started_by`, `submitted_at` et `submitted_by` (fin de la saisie, statut « à valider »), `lock_version` (RG-86), `created_by`, `updated_by`. **inventory_lines** : `expected_site_id` et `expected_status` (snapshot ; « justifié » d'office si prêté ou en maintenance), `found_site_id`, `lock_version` (RG-47 : une saisie n'en écrase pas une autre), `resolution` peut aussi valoir `found` (retrouvé après clôture, QL9-5), `resolution_ref` est polymorphe (`resolution_ref_type`, `resolution_ref_id`), `resolved_by`, `resolved_at`, `resolution_notes`, `created_by`. Index unique (`inventory_id`, `asset_id`).
+
 ### Prêts
 
 **loans** : `reference` (`PRT-2026-064` ou `EMP-2026-004`), `direction` (out, in), `borrower_type` (interne, externe), `borrower_name`, `borrower_contact`, `department_id` (si interne), `out_on`, `due_on`, `returned_on`, `responsible_id`, `notes`, `status` (en cours, rendu).
@@ -89,17 +91,19 @@ Noms techniques en anglais, libellés d'interface en français. Toutes les table
 
 ### Sorties
 
-**disposals** : `reference` (`SRT-2026-023`), `asset_id` (unique), `disposed_on`, `reason` (Enum : cession, don, réforme, destruction, perte, vol, autre), `decided_by` (texte), `decision_reference`, `buyer_or_beneficiary`, `sale_price`, `notes`, valeurs figées (`original_value`, `accumulated_depreciation`, `net_book_value`), `accounting_status` (à valider, validée), `accounting_validated_by`, `accounting_validated_at`.
+**disposals** : `reference` (`SRT-2026-023`), `asset_id` (unique), `disposed_on`, `reason` (Enum : cession, don, réforme, destruction, perte, vol, autre), `decided_by` (texte), `decision_reference`, `buyer_or_beneficiary`, `sale_price`, `notes`, valeurs figées (`original_value`, `accumulated_depreciation`, `net_book_value`), `accounting_status` (à valider, validée), `accounting_validated_by`, `accounting_validated_at`, `previous_status` (statut du bien avant la sortie), `created_by`, `updated_by`. Justificatifs par le pivot `documentables` (aussi rattachés au bien). Référence `SRT-AAAA-NNN` : compteur par année de la date de sortie dans `asset_number_sequences` (portée `SRT-2026`). *(colonne `previous_status` ajoutée au lot 10)*
 
 ### Amortissements
 
-**fiscal_years** : `label` (2026), `starts_on`, `ends_on`, `status` (préparé, ouvert, clôturé), `closed_by`, `closed_at`.
+**fiscal_years** : `year` (2026, unique), `label` (2026), `starts_on`, `ends_on` (année civile, Q5), `status` (préparé, ouvert, clôturé), `closed_by`, `closed_at`, `closing_notes` (JSON : points d'attention confirmés, plans validés, anomalies ; RG-42). *(colonnes `year` et `closing_notes` ajoutées au lot 7)*
 
-**depreciation_schedules** : `asset_id`, `version`, `method`, `base_amount`, `duration_years`, `rate`, `residual_value`, `starts_on`, `ends_on`, `validated_by`, `validated_at`, `is_current` (un seul courant par bien).
+**depreciation_schedules** : `asset_id`, `version`, `method`, `original_value`, `base_amount`, `duration_years`, `rate` (taux du plan), `declining_coefficient` (null en linéaire), `residual_value`, `starts_on`, `ends_on`, `recalculated_from_year` (RG-37 : exercice d'effet du dernier changement de paramètre), `validated_by`, `validated_at`, `is_current` (un seul courant par bien). Index unique (`asset_id`, `version`). *(colonnes `original_value`, `declining_coefficient` et `recalculated_from_year` ajoutées au lot 7)*
 
-**depreciation_lines** : `depreciation_schedule_id`, `fiscal_year_id`, `days` (ou `months` pour le dégressif), `base`, `rate`, `amount`, `accumulated`, `net_book_value`, `is_locked` (exercice clôturé). Index unique (`schedule_id`, `fiscal_year_id`).
+**depreciation_lines** : `depreciation_schedule_id`, `fiscal_year` (l'année de l'exercice, reliée à `fiscal_years.year` quand l'exercice existe), `days` (ou `months` pour le dégressif), `base`, `rate` (null quand la dotation ne découle pas d'un taux annuel : durée restante recalculée, bascule du dégressif), `amount`, `accumulated`, `net_book_value`, `is_locked` (exercice clôturé ou antérieur, RG-36). Index unique (`depreciation_schedule_id`, `fiscal_year`). *(lot 7 : `fiscal_year` remplace `fiscal_year_id`, car un plan couvre des exercices pas encore créés et des années antérieures au premier exercice saisi)*
 
-**depreciation_parameter_changes** : `asset_id`, `parameter`, `old_value`, `new_value`, `reason`, `effective_fiscal_year_id`, `changed_by`, `changed_at`.
+**depreciation_parameter_changes** : `asset_id`, `batch_uuid` (changements enregistrés ensemble), `parameter`, `old_value`, `new_value`, `reason`, `effective_year`, `effective_fiscal_year_id` (null si l'exercice n'existe pas encore), `changed_by`, `changed_at`. *(colonnes `batch_uuid` et `effective_year` ajoutées au lot 7)*
+
+**assets** (lot 7) : `declining_coefficient` est renseigné au premier calcul d'un plan dégressif ; un changement ultérieur des paramètres généraux ne le modifie pas.
 
 ### Documents, étiquettes, paramètres
 
@@ -119,7 +123,7 @@ Rôles et permissions : tables `spatie/laravel-permission`.
 
 Journal : table `activity_log` de `spatie/laravel-activitylog`, avec `properties` (old, attributes) et l'IP dans `properties.ip`.
 
-Alertes : table `notifications` de Laravel (canal base de données uniquement) + calcul planifié (`schedule:run` toutes les heures) pour les échéances.
+Alertes *(lot 11)* : table **alerts** (`type`, `fingerprint` unique = type + objet, `subject_type` / `subject_id` = prêt, intervention, bien ou inventaire concerné, `event_on`, `raised_at`, `resolved_at`) et table **alert_reads** (`alert_id`, `user_id`, `read_at`, unique : marquage lu par utilisateur). L'alerte ne copie aucune donnée de l'objet : le périmètre et les droits de l'utilisateur s'appliquent à l'objet à la lecture (RG-81). Calcul planifié toutes les heures (`patrimoine:calculer-alertes`, `schedule:run`). La table `notifications` de Laravel n'est pas utilisée (voir QL11-2).
 
 ## Données de démonstration (seeders)
 
