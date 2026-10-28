@@ -44,6 +44,25 @@ class EnvironmentCheck
     }
 
     /**
+     * RG-66 : plus grande taille de fichier que PHP accepte (le plus petit de upload_max_filesize et post_max_size),
+     * en Ko ; null quand PHP n'impose aucune limite.
+     */
+    public function uploadLimitKb(): ?int
+    {
+        $limits = [];
+
+        foreach (['upload_max_filesize', 'post_max_size'] as $name) {
+            $bytes = ini_parse_quantity((string) ini_get($name));
+
+            if ($bytes > 0) {
+                $limits[] = intdiv($bytes, 1024);
+            }
+        }
+
+        return $limits === [] ? null : min($limits);
+    }
+
+    /**
      * @return array{label: string, status: 'ok'|'fail', detail: string}
      */
     public function php(): array

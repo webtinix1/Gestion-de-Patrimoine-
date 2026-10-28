@@ -68,6 +68,7 @@ class ActivityResource extends Resource
         'etiquettes' => 'Étiquettes',
         'inventaires' => 'Inventaires',
         'sorties' => 'Sorties du patrimoine',
+        'parametres' => 'Paramètres',
     ];
 
     public static function canCreate(): bool

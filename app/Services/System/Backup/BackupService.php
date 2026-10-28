@@ -2,6 +2,7 @@
 
 namespace App\Services\System\Backup;
 
+use App\Services\Settings;
 use FilesystemIterator;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
@@ -65,6 +66,12 @@ class BackupService
             $this->removeTree($dir);
 
             throw $e instanceof BackupException ? $e : new BackupException('La sauvegarde a échoué : '.$e->getMessage(), 0, $e);
+        }
+
+        try {
+            app(Settings::class)->recordTechnical(Settings::LAST_BACKUP_AT, now()->toIso8601String());
+        } catch (Throwable) {
+            // L'état affiché par E41 ne doit jamais faire échouer une sauvegarde déjà contrôlée.
         }
 
         return [
