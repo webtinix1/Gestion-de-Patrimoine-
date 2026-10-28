@@ -138,7 +138,9 @@ it('garde la date d\'affectation quand la modification de la fiche ne touche pas
 });
 
 it('ne propose pas la réimpression ni la redirection sans page des étiquettes (RG-24)', function () {
-    expect(TransferAction::labelsPageExists())->toBeFalse();
+    if (TransferAction::labelsPageExists()) {
+        $this->markTestSkipped('La page des étiquettes du lot 4 existe.');
+    }
 
     livewire(ViewAsset::class, ['record' => $this->asset->getRouteKey()])
         ->callAction('transfer', [
@@ -151,7 +153,10 @@ it('ne propose pas la réimpression ni la redirection sans page des étiquettes 
 });
 
 it('redirige vers la page des étiquettes quand elle existe (RG-24)', function () {
-    Route::get('admin/etiquettes', fn () => 'ok');
+    // Page simulée tant que le lot 4 n'est pas fusionné ; la vraie page sert ensuite.
+    if (! TransferAction::labelsPageExists()) {
+        Route::get('admin/etiquettes', fn () => 'ok');
+    }
 
     expect(TransferAction::labelsPageExists())->toBeTrue();
 

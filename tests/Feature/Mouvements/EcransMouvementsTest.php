@@ -3,6 +3,7 @@
 use App\Actions\Movements\RecordInitialAssignment;
 use App\Actions\Movements\TransferAssets;
 use App\Enums\MovementType;
+use App\Filament\Actions\TransferAction;
 use App\Filament\Resources\Assets\Pages\ListAssets;
 use App\Filament\Resources\Assets\Pages\ViewAsset;
 use App\Filament\Resources\Assets\RelationManagers\MovementsRelationManager;
@@ -64,7 +65,10 @@ it('transfère un bien depuis la fiche (E14)', function () {
 });
 
 it('propose la réimpression de l\'étiquette quand le département change (RG-24)', function () {
-    Route::get('admin/etiquettes', fn () => 'ok');
+    // Page simulée tant que le lot 4 n'est pas fusionné ; la vraie page sert ensuite.
+    if (! TransferAction::labelsPageExists()) {
+        Route::get('admin/etiquettes', fn () => 'ok');
+    }
 
     livewire(ViewAsset::class, ['record' => $this->asset->getRouteKey()])
         ->callAction('transfer', [
