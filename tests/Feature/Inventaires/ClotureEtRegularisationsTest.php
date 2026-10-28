@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\Disposals\RecordDisposal;
 use App\Actions\Inventories\CloseInventory;
 use App\Actions\Inventories\DeclareRemainingMissing;
 use App\Actions\Inventories\RecordInventoryEntry;
@@ -13,6 +14,7 @@ use App\Enums\InventoryStatus;
 use App\Exceptions\ConcurrentModificationException;
 use App\Models\Activity;
 use App\Models\Asset;
+use App\Models\Disposal;
 use App\Models\FiscalYear;
 use App\Models\Inventory;
 use App\Models\InventoryLine;
@@ -21,7 +23,6 @@ use App\Services\FiscalYearClosing\AttentionPoint;
 use App\Services\FiscalYearClosing\FiscalYearAttentionPoints;
 use App\Services\MovementRecorder;
 use Illuminate\Auth\Access\AuthorizationException;
-use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\ValidationException;
 
 require_once __DIR__.'/helpers.php';
@@ -250,12 +251,28 @@ it('n\'accepte comme sortie pour perte qu\'une sortie App\Models\Disposal du bie
         ->and(fn () => app(ResolveInventoryLine::class)($line->fresh(), 'found', null))->toThrow(ValidationException::class);
 });
 
-it('n\'affiche le lien de sortie pour perte que si la page des sorties existe (contrat lot 10)', function () {
+it('régularise la ligne manquante quand la sortie pour perte est enregistrée depuis le rapport (lots 9 et 10)', function () {
     $inventory = closedInventory($this->w);
+    $line = lineOf($inventory, $this->w->pupitre);
 
-    expect(RegularizeInventoryLine::disposalUrl(lineOf($inventory, $this->w->pupitre)))->toBeNull();
+    $disposal = app(RecordDisposal::class)(
+        $this->w->pupitre->fresh(),
+        ['disposed_on' => today()->toDateString(), 'reason' => 'loss', 'decided_by' => 'Conseil'],
+        $this->w->pupitre->number,
+        inventoryLineId: $line->id,
+    );
 
-    Route::get('admin/sorties/create', fn () => 'ok');
+    $line = $line->fresh();
+
+    expect($disposal)->toBeInstanceOf(Disposal::class)
+        ->and($line->resolution)->toBe(InventoryResolution::Disposal)
+        ->and($line->resolution_ref_type)->toBe($disposal->getMorphClass())
+        ->and($line->resolution_ref_id)->toBe($disposal->id)
+        ->and(fn () => app(ResolveInventoryLine::class)($line, InventoryResolution::Disposal, $disposal))->toThrow(ValidationException::class);
+});
+
+it('affiche le lien de sortie pour perte vers la page des sorties (contrat lot 10)', function () {
+    $inventory = closedInventory($this->w);
 
     expect(RegularizeInventoryLine::disposalUrl($line = lineOf($inventory, $this->w->pupitre)))
         ->toBe(url('/admin/sorties/create').'?bien='.$this->w->pupitre->id.'&motif=loss&inventaire_ligne='.$line->id);
