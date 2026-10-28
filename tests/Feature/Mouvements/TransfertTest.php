@@ -41,6 +41,7 @@ beforeEach(function () {
 
     $this->asset = Asset::factory()->create([
         'number' => 'PAT-000087',
+        'designation' => 'Chaise',
         'site_id' => $this->siege->id,
         'department_id' => $this->louange->id,
         'service_id' => $this->chorale->id,
