@@ -82,7 +82,7 @@ Le journal garde notamment la création et la modification des biens, les transf
 |---|---|---|
 | « Compte bloqué après plusieurs essais infructueux… » | 5 échecs de mot de passe. | Attendre 15 minutes ou réinitialiser le mot de passe. |
 | Page 403 | Droit manquant. | Contrôler le rôle et le périmètre. |
-| Page 419 | Session expirée (30 minutes d'inactivité). | Se reconnecter. |
+| Page 419 | Session expirée (30 minutes d'inactivité par défaut ; durée réglable dans Administration > Paramètres, onglet Sécurité). | Se reconnecter. |
 | Page 500 | Erreur du serveur. | Noter l'heure ; le détail est dans le fichier `storage\logs\laravel.log` du serveur ; prévenir Webtinix. |
 | Page 503 | Application en maintenance (sauvegarde ou mise à jour). | Attendre la fin, ou vérifier que `php artisan up` a été lancé. |
 | « Connexion au serveur perdue » | Réseau coupé ou serveur arrêté. | Vérifier que le serveur est allumé et que WAMP est en ligne. |

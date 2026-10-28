@@ -119,33 +119,42 @@ Une valeur déjà utilisée ne se supprime pas : désactivez-la, elle n'est plus
 
 ## 5. Les paramètres
 
-Les paramètres de l'application sont stockés en base (table `settings`). Cette version n'a **pas encore d'écran « Paramètres »** : seuls les règles d'amortissement se règlent dans l'application (menu Immobilisations > Règles d'amortissement : seuil d'immobilisation, méthode dégressive et coefficients). Pour les autres, voici la liste et les valeurs par défaut.
+Les paramètres de l'application se règlent dans l'écran **Administration > Paramètres** (`/admin/parametres`), réservé à l'administrateur. Le seuil d'immobilisation et la méthode dégressive restent sur leur écran propre : bouton **Règles d'amortissement** en haut de l'écran Paramètres, ou menu Immobilisations > Règles d'amortissement.
 
-| Paramètre (clé) | Rôle | Valeur par défaut |
+### 5.1 Enregistrer les réglages
+
+L'écran a cinq onglets. Un seul bouton **Enregistrer** (en haut à droite) enregistre les changements de tous les onglets à la fois.
+
+1. **Identité** : renseignez **Nom de l'Église** (120 caractères au plus) et **Sigle** (12 caractères au plus). Ils sont repris dans l'en-tête des documents PDF et sur les étiquettes. Renseignez-les avant d'imprimer quoi que ce soit : par défaut, ce sont des textes provisoires entre crochets.
+2. **Numérotation** : choisissez le **Format du numéro** (« Numéro continu » PAT-000001, « Avec l'année, compteur annuel » PAT-2026-000001, ou « Par catégorie, préfixe de la catégorie » INF-000001) et le **Préfixe** (2 à 6 lettres ou chiffres, sans effet avec le format par catégorie). L'écran affiche un exemple et le prochain numéro attribué. **Dès qu'un bien existe, format et préfixe sont verrouillés** (un message orange l'indique) : un numéro attribué ne change jamais. Pour changer de format après coup, contactez Webtinix.
+3. **Alertes** : quatre délais, modifiables dans leurs bornes : « Prévenir avant l'échéance d'un prêt » (0 à 60 jours, 3 par défaut), « Signaler une intervention ouverte depuis » (1 à 365 jours, 15), « Rappel d'un inventaire planifié » (0 à 60 jours avant, 7), « Prévenir avant la fin d'un amortissement » (1 à 24 mois, 3). Les nouveaux délais s'appliquent au prochain calcul des alertes, c'est-à-dire dans l'heure.
+4. **Sécurité** : **Déconnexion après inactivité** (de 5 à 480 minutes) et **Taille maximale d'un document** en Mo. La durée d'inactivité s'applique dès la requête suivante de chaque utilisateur connecté. La taille ne peut pas dépasser la limite de PHP sur le serveur, indiquée sous le champ (voir l'onglet « État du serveur » et le guide d'installation). La section « Règles fixes (lecture seule) » rappelle : mot de passe de 8 caractères minimum avec un chiffre, blocage du compte pendant 15 minutes après 5 échecs consécutifs, réinitialisation d'un mot de passe oublié par l'administrateur (mot de passe provisoire à changer à la première connexion). Ces règles ne se règlent pas ici.
+5. **État du serveur** : lecture seule. Version de PHP, extensions, base de données, limites d'envoi de fichiers, espace disque, planificateur (date du dernier calcul des alertes) et dernière sauvegarde. Chaque ligne est marquée OK, À surveiller ou Anomalie. Rien ne se modifie ici : consultez-la après une installation ou une mise à jour.
+
+Cliquez sur **Enregistrer**. Trois résultats possibles :
+
+| Message | Ce que cela veut dire | Quoi faire |
 |---|---|---|
-| `church_name` | Nom de l'Église (documents imprimés, en-têtes) | un texte provisoire entre crochets |
-| `church_acronym` | Sigle de l'Église | un texte provisoire entre crochets |
-| `number_format` | Format du numéro patrimonial : `global`, `yearly` (avec l'année) ou `category` (par catégorie) | `global` |
-| `number_prefix` | Préfixe du numéro | `PAT` |
-| `capitalization_threshold` | Seuil d'immobilisation en FCFA | 100 000 |
-| `document_max_size_kb` | Taille maximale d'un document, en Ko | 20 480 (20 Mo) |
-| `alert_loan_due_days` | Alerte « échéance de prêt » : nombre de jours avant | 3 |
-| `alert_maintenance_days` | Alerte « intervention ouverte » : nombre de jours | 15 |
-| `alert_inventory_days` | Alerte « inventaire à venir » : nombre de jours avant | 7 |
-| `alert_depreciation_months` | Alerte « fin d'amortissement » : nombre de mois avant | 3 |
+| « Paramètres enregistrés » | Les changements sont pris en compte et inscrits au journal des opérations (valeurs avant et après). | Rien. |
+| « Aucune modification à enregistrer » | Rien ne diffère des valeurs en vigueur. | Modifiez une valeur. |
+| « Paramètres non enregistrés » | Une valeur est hors bornes, vide, ou « Ce réglage a été modifié par un autre administrateur depuis l'ouverture de l'écran. » | Corrigez la valeur indiquée ; en cas de modification par un autre administrateur, rechargez la page puis recommencez. |
 
-**Modifier un paramètre** (opération technique, à faire avec Webtinix ou un technicien) : sur le serveur, ouvrir une invite de commande dans le dossier de l'application, lancer `php artisan tinker`, puis par exemple :
+Seuls les champs que vous avez changés sont écrits. Un changement du format de numéro ne s'applique qu'aux **nouveaux** biens.
 
-```
-app(App\Services\Settings::class)->set('church_name', 'Nom de l\'Église');
-app(App\Services\Settings::class)->set('church_acronym', 'SIGLE');
-```
+### 5.2 Valeurs par défaut
 
-Quitter avec `exit`. Un changement du format de numéro ne s'applique qu'aux **nouveaux** biens. Renseignez au minimum le nom et le sigle de l'Église avant d'imprimer des étiquettes ou des documents.
+Tant que rien n'est enregistré, l'application utilise ces valeurs :
 
-Deux réglages viennent du fichier `.env` du serveur : la durée d'inactivité avant déconnexion (`SESSION_LIFETIME`, 30 minutes par défaut) et l'adresse de l'application (`APP_URL`). Après toute modification de `.env`, lancer `php artisan optimize`.
+| Paramètre | Valeur par défaut |
+|---|---|
+| Nom et sigle de l'Église | un texte provisoire entre crochets |
+| Format du numéro / préfixe | « Numéro continu » / `PAT` |
+| Seuil d'immobilisation (écran Règles d'amortissement) | 100 000 FCFA |
+| Taille maximale d'un document | 20 Mo |
+| Délais d'alerte | 3 jours (prêt), 15 jours (intervention), 7 jours (inventaire), 3 mois (amortissement) |
+| Déconnexion après inactivité | 30 minutes |
 
-La sécurité des comptes est fixée par l'application : mot de passe de 8 caractères minimum avec un chiffre, blocage de 15 minutes après 5 échecs.
+La durée d'inactivité par défaut vient du fichier `.env` du serveur (`SESSION_LIFETIME`, 30 minutes) : elle ne s'applique que **tant qu'aucune durée n'est enregistrée** dans l'écran Paramètres ; ensuite, la valeur de l'écran l'emporte. L'adresse de l'application (`APP_URL`) reste un réglage du `.env` ; après toute modification de `.env`, lancer `php artisan optimize`.
 
 ## 6. Surveiller et auditer
 

@@ -105,11 +105,19 @@ Planification : `routes/console.php` déclare `patrimoine:calculer-alertes` tout
 
 ### 2.11 Fichiers et documents (RG-65, RG-66)
 
-Les fichiers sont stockés sur le disque `local` (`storage/app/private`), jamais dans `public`. Ils ne sortent que par des routes authentifiées du panneau (`documents/{document}/fichier`, `biens/{asset}/photo`, `signalements/{report}/photo`) qui contrôlent les droits. Taille maximale : paramètre `document_max_size_kb` (20 Mo) ; il faut régler `upload_max_filesize` et `post_max_size` dans le `php.ini` du serveur web (voir `docs/07`).
+Les fichiers sont stockés sur le disque `local` (`storage/app/private`), jamais dans `public`. Ils ne sortent que par des routes authentifiées du panneau (`documents/{document}/fichier`, `biens/{asset}/photo`, `signalements/{report}/photo`) qui contrôlent les droits. Taille maximale : paramètre `document_max_size_kb` (20 Mo par défaut, réglable dans l'écran Paramètres, plafonnée par la limite de PHP) ; il faut régler `upload_max_filesize` et `post_max_size` dans le `php.ini` du serveur web (voir `docs/07`).
 
 ### 2.12 États système
 
 Pages d'erreur françaises dans `resources/views/errors` (401, 403, 404, 419, 429, 500, 503) sur le gabarit `shell.blade.php`, sans ressource externe. Fenêtres d'état du panneau (session expirée, serveur injoignable, erreur) : `resources/views/filament/partials/etats-systeme.blade.php` et `public/js/etats-systeme.js`, accrochés par `PanelsRenderHook::BODY_END`. Aucun détail technique n'est montré en 500 ; il va dans `storage/logs/laravel.log`.
+
+### 2.13 Écran Paramètres (E41)
+
+- **`Filament\Pages\SettingsPage`** (Administration > Paramètres, `/admin/parametres`) : onglets Identité, Numérotation, Alertes, Sécurité, État du serveur ; un bouton « Enregistrer » unique. Le format et le préfixe sont désactivés dès que `UpdateSettings::numberingLocked()` est vrai (un bien existe ou un compteur a avancé). La page renvoie à l'Action les valeurs chargées à l'ouverture, pour détecter un changement concurrent.
+- **`Actions\Settings\UpdateSettings`** : seul point d'écriture. Revalide tout (bornes des alertes `ALERT_BOUNDS`, nom 120 et sigle 12 caractères, durée de session 5 à 480 min, taille des documents entre 1 Mo et le plus bas du plafond de 100 Mo et de la limite PHP). N'écrit que les champs présents dans `$data` et réellement modifiés. Refuse l'enregistrement si une valeur a changé en base depuis le chargement de l'écran (message « modifié par un autre administrateur »). Le tout dans une transaction, avec verrou sur `asset_number_sequences` pour ne pas croiser une création de bien. Les anciennes et nouvelles valeurs vont au journal (RG-70, log `parametres`).
+- **`Policies\SettingPolicy`** : réservée au rôle Administrateur actif, en plus du droit « Paramètres » de la matrice ; un rôle personnalisé n'y accède pas. Ni création ni suppression.
+- **`Http\Middleware\ApplySessionLifetime`** : avant le démarrage de la session, remplace `session.lifetime` par le paramètre `session_lifetime_minutes` s'il est enregistré et compris entre 5 et 480 ; sinon `SESSION_LIFETIME` du `.env` reste la valeur par défaut. La valeur est mise en cache 60 s (`Cache::remember`, vidé par `Settings::set`) pour éviter une requête SQL par page ; base injoignable : le `.env` s'applique.
+- **`Services\System\ServerStatus`** : contrôles en lecture seule de l'onglet « État du serveur » (PHP, extensions, base, limites d'envoi via `EnvironmentCheck`, espace disque, planificateur d'après le dernier calcul des alertes, dernière sauvegarde) ; chaque ligne est `ok`, `warn` ou `fail`.
 
 ## 3. Modèle de données
 
@@ -228,6 +236,6 @@ Pour un nouveau module concret :
 - **Tâche planifiée Windows.** Séparer l'exécutable et ses arguments (`New-ScheduledTaskAction -Execute … -Argument …`), sans quoi les chemins avec espaces cassent la commande.
 - **Démonstration.** `--demo` est refusée dès qu'il existe un utilisateur, un site, un département ou un bien : elle réécrit le compte `admin`.
 - **Excel.** Forcer chaque texte en texte (aucune formule injectée par une désignation).
-- **Écran Paramètres absent.** Les paramètres de `Settings` (nom et sigle de l'Église, format du numéro, délais d'alerte, taille des documents) n'ont pas d'écran ; ils se règlent par `Settings::set()` (voir `docs/guides/06-administration.md`). Seuls le seuil d'immobilisation et le dégressif ont un écran (Règles d'amortissement).
+- **Écran Paramètres.** Il existe depuis le lot 12 (E41, §2.13). Le seuil d'immobilisation et le dégressif restent sur leur écran propre (Règles d'amortissement), joint par un bouton de l'écran Paramètres.
 - **Navigateur.** `public/js/etats-systeme.js` n'a pas été exécuté dans un vrai navigateur par les tests : à vérifier à la main à chaque changement de Livewire.
 - **Poste de développement.** Composer se fige après certains scripts : `composer dump-autoload -n --no-scripts`, puis `php artisan package:discover` et `php artisan filament:upgrade`.
