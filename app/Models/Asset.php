@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Support\Carbon;
 use LogicException;
@@ -78,6 +79,11 @@ class Asset extends Model
         static::updating(function (Asset $asset): void {
             if ($asset->isDirty('number')) {
                 throw new LogicException('Le numéro patrimonial ne peut pas être modifié.');
+            }
+
+            // RG-53 : une sortie ne s'annule pas ; la date de sortie et le statut d'un bien sorti ne bougent plus.
+            if ($asset->getOriginal('disposed_at') !== null && $asset->isDirty(['disposed_at', 'status'])) {
+                throw new LogicException('Un bien sorti du patrimoine le reste : sa sortie ne peut pas être annulée.');
             }
 
             // RG-86 : toute modification, quelle que soit l'opération, change la version de la fiche.
@@ -196,6 +202,16 @@ class Asset extends Model
     public function movements(): HasMany
     {
         return $this->hasMany(Movement::class);
+    }
+
+    /**
+     * RG-50 : sortie du patrimoine (une au plus).
+     *
+     * @return HasOne<Disposal, $this>
+     */
+    public function disposal(): HasOne
+    {
+        return $this->hasOne(Disposal::class);
     }
 
     /**
