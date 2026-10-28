@@ -55,3 +55,16 @@ Questions à faire trancher par l'Église avant ou pendant le développement. Po
 | Q62 | Réimpression des étiquettes après un transfert (RG-24) : le lien vers la page des étiquettes porte les identifiants des biens (`/admin/etiquettes?biens=12,15`). Le modèle d'étiquette fait-il toujours figurer le site et le département ? *(ajoutée au lot 6)* | Lot 4 | Réimpression proposée dès que le site ou le département change |
 | Q63 | Transfert groupé : faut-il écarter automatiquement un bien déjà à la destination plutôt que de refuser tout le lot ? *(ajoutée au lot 6)* | Lot 6 | Tout le lot est refusé, avec la liste des biens concernés |
 | Q64 | Transfert groupé : faut-il une option « inchangé » par élément (garder le local ou le responsable actuel de chaque bien) ? *(ajoutée au lot 6)* | Lot 6 | Non : un élément laissé vide est vidé pour tous les biens |
+
+## Sorties du patrimoine (lot 10)
+
+| N° | Question | Qui | Par défaut |
+|---|---|---|---|
+| QL10-1 | Sortie d'un bien emprunté ou en maintenance (vol pendant un prêt, bien déclaré irréparable) : faut-il pouvoir le sortir directement ? *(ajoutée au lot 10)* | Administration | Refusé : on enregistre d'abord le retour du prêt ou la clôture de l'intervention, puis la sortie (le lot 8 proposera la sortie après une intervention « irréparable ») |
+| QL10-2 | Bien sans plan d'amortissement (non amortissable sous le seuil, ou sans date de mise en service) : quelles valeurs figer à la sortie ? *(ajoutée au lot 10)* | Comptable | Valeur d'origine = prix d'acquisition, cumul 0, VNC = valeur d'origine |
+| QL10-3 | Q9.12 appliquée : une sortie datée dans un exercice clôturé, ou dans une année antérieure au premier exercice recalculable, est refusée (RG-36). Faut-il au contraire une régularisation sur l'exercice ouvert ? *(ajoutée au lot 10)* | Comptable | Refus, avec un message qui renvoie au comptable |
+| QL10-4 | Aucune annulation dans l'application (RG-53) : en cas d'erreur de saisie (mauvais bien, mauvaise date), quelle procédure ? *(ajoutée au lot 10)* | Administration | Aucune dans l'application ; correction technique hors application, à tracer par écrit |
+| QL10-5 | La validation comptable d'une sortie (RG-54) est définitive et peut intervenir après la clôture de l'exercice ; la clôture ne valide pas les sorties (elle les signale, RG-42). À confirmer. *(ajoutée au lot 10)* | Comptable | Oui |
+| QL10-6 | Vol et perte : la maquette affiche une date du constat et une référence de déclaration, absentes du modèle de données. Champs dédiés, ou saisie dans « Référence de la décision » et « Observations » ? *(ajoutée au lot 10)* | Administration | Saisie dans ces deux champs |
+| QL10-7 | Justificatif de sortie obligatoire (PV, déclaration) ? *(ajoutée au lot 10)* | Administration | Facultatif |
+| QL10-8 | Plan validé avant la sortie : la sortie crée une nouvelle version arrêtée, non validée, que la clôture validera (RG-38). Le comptable doit-il la valider avant ? *(ajoutée au lot 10)* | Comptable | Non : validée par la clôture, ou à la main depuis le plan |

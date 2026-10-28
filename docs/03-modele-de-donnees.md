@@ -89,7 +89,7 @@ Noms techniques en anglais, libellés d'interface en français. Toutes les table
 
 ### Sorties
 
-**disposals** : `reference` (`SRT-2026-023`), `asset_id` (unique), `disposed_on`, `reason` (Enum : cession, don, réforme, destruction, perte, vol, autre), `decided_by` (texte), `decision_reference`, `buyer_or_beneficiary`, `sale_price`, `notes`, valeurs figées (`original_value`, `accumulated_depreciation`, `net_book_value`), `accounting_status` (à valider, validée), `accounting_validated_by`, `accounting_validated_at`.
+**disposals** : `reference` (`SRT-2026-023`), `asset_id` (unique), `disposed_on`, `reason` (Enum : cession, don, réforme, destruction, perte, vol, autre), `decided_by` (texte), `decision_reference`, `buyer_or_beneficiary`, `sale_price`, `notes`, valeurs figées (`original_value`, `accumulated_depreciation`, `net_book_value`), `accounting_status` (à valider, validée), `accounting_validated_by`, `accounting_validated_at`, `previous_status` (statut du bien avant la sortie), `created_by`, `updated_by`. Justificatifs par le pivot `documentables` (aussi rattachés au bien). Référence `SRT-AAAA-NNN` : compteur par année de la date de sortie dans `asset_number_sequences` (portée `SRT-2026`). *(colonne `previous_status` ajoutée au lot 10)*
 
 ### Amortissements
 
