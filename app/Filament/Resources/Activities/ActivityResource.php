@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Activities;
 use App\Filament\Resources\Activities\Pages\ListActivities;
 use App\Models\Activity;
 use App\Models\Asset;
+use App\Models\Inventory;
 use App\Models\Role;
 use App\Models\User;
 use BackedEnum;
@@ -58,6 +59,7 @@ class ActivityResource extends Resource
         'mouvements' => 'Mouvements',
         'documents' => 'Documents',
         'amortissements' => 'Immobilisations et amortissements',
+        'inventaires' => 'Inventaires',
     ];
 
     public static function canCreate(): bool
@@ -80,11 +82,12 @@ class ActivityResource extends Resource
             return $query;
         }
 
-        $assetType = (new Asset)->getMorphClass();
+        // Les inventaires suivent aussi le périmètre (scope InventoryPerimeterScope).
+        $types = [(new Asset)->getMorphClass(), (new Inventory)->getMorphClass()];
 
         return $query->where(fn (Builder $query) => $query
-            ->where(fn (Builder $query) => $query->whereNull('subject_type')->orWhere('subject_type', '!=', $assetType))
-            ->orWhereHasMorph('subject', [Asset::class]));
+            ->where(fn (Builder $query) => $query->whereNull('subject_type')->orWhereNotIn('subject_type', $types))
+            ->orWhereHasMorph('subject', [Asset::class, Inventory::class]));
     }
 
     public static function table(Table $table): Table
@@ -199,6 +202,7 @@ class ActivityResource extends Resource
         return match (true) {
             $subject instanceof User => 'Utilisateur '.$subject->username,
             $subject instanceof Role => 'Rôle '.$subject->name,
+            $subject instanceof Inventory => 'Inventaire '.$subject->reference,
             default => class_basename($subject).' n° '.$subject->getKey(),
         };
     }

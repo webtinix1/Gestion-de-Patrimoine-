@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Assets\Tables;
 
 use App\Enums\AssetStatus;
+use App\Filament\Actions\AddToInventoryAction;
 use App\Filament\Actions\TransferAction;
 use App\Models\Asset;
 use App\Models\AssetCondition;
@@ -108,6 +109,7 @@ class AssetsTable
             ])
             ->toolbarActions([
                 TransferAction::bulk(),
+                AddToInventoryAction::bulk(),
             ]);
     }
 }
