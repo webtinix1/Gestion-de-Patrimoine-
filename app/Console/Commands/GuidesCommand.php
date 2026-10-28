@@ -29,9 +29,9 @@ class GuidesCommand extends Command
         }
 
         $option = (string) $this->option('sortie');
-        $target = preg_match('#^([A-Za-z]:[\\/]|/)#', $option) === 1 ? $option : base_path($option);
+        $target = str_replace('\\', '/', preg_match('#^([A-Za-z]:[\\\\/]|/)#', $option) === 1 ? $option : base_path($option));
 
-        if (! is_dir($target) && ! mkdir($target, 0775, true) && ! is_dir($target)) {
+        if (! is_dir($target) && ! @mkdir($target, 0775, true) && ! is_dir($target)) {
             $this->error("Impossible de créer le dossier {$target}.");
 
             return self::FAILURE;
@@ -55,7 +55,7 @@ class GuidesCommand extends Command
                 'editedAt' => now(),
             ]);
 
-            $path = $target.DIRECTORY_SEPARATOR.basename($file, '.md').'.pdf';
+            $path = $target.'/'.basename($file, '.md').'.pdf';
             file_put_contents($path, $pdf->output());
             $this->line('PDF écrit : '.$path);
         }

@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Artisan;
  * Lot 12 : guides utilisateur en PDF, générés hors ligne à partir de docs/guides.
  */
 beforeEach(function () {
-    $this->sortie = sys_get_temp_dir().DIRECTORY_SEPARATOR.'guides-'.bin2hex(random_bytes(4));
+    $this->sortie = storage_path('app/guides-test-'.bin2hex(random_bytes(4)));
 });
 
 afterEach(function () {
