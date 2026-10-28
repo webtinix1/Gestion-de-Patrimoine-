@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Activities;
 use App\Filament\Resources\Activities\Pages\ListActivities;
 use App\Models\Activity;
 use App\Models\Asset;
+use App\Models\Loan;
 use App\Models\Role;
 use App\Models\User;
 use BackedEnum;
@@ -56,6 +57,9 @@ class ActivityResource extends Resource
         'roles' => 'Rôles et permissions',
         'biens' => 'Biens',
         'mouvements' => 'Mouvements',
+        'prets' => 'Prêts et emprunts',
+        'maintenance' => 'Maintenance',
+        'signalements' => 'Signalements',
         'documents' => 'Documents',
         'amortissements' => 'Immobilisations et amortissements',
     ];
@@ -80,11 +84,12 @@ class ActivityResource extends Resource
             return $query;
         }
 
-        $assetType = (new Asset)->getMorphClass();
+        // QL8-1 : un emprunt (sans bien) n'est visible que d'un utilisateur sans périmètre restreint.
+        $scoped = array_map(fn (string $class): string => (new $class)->getMorphClass(), [Asset::class, Loan::class]);
 
         return $query->where(fn (Builder $query) => $query
-            ->where(fn (Builder $query) => $query->whereNull('subject_type')->orWhere('subject_type', '!=', $assetType))
-            ->orWhereHasMorph('subject', [Asset::class]));
+            ->where(fn (Builder $query) => $query->whereNull('subject_type')->orWhereNotIn('subject_type', $scoped))
+            ->orWhereHasMorph('subject', [Asset::class, Loan::class]));
     }
 
     public static function table(Table $table): Table
