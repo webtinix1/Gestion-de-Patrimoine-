@@ -1,6 +1,6 @@
 <?php
 
-use DatabaseSeedersDemoSeeder;
+use Database\Seeders\DemoSeeder;
 use Illuminate\Support\Facades\Artisan;
 
 /**
