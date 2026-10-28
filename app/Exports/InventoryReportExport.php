@@ -58,7 +58,7 @@ class InventoryReportExport extends DefaultValueBinder implements FromArray, Sho
             ['Attendus', $this->counters['expected'], 'Présents', $this->counters['present'], 'Manquants', $this->counters['missing'],
                 'Écarts', $this->counters['discrepancies'], 'Non enregistrés', $this->counters['unregistered'], 'Hors périmètre', $this->counters['out_of_scope'], 'Justifiés', $this->counters['justified']],
             ['Clôture', $this->inventory->closed_at?->format('d/m/Y H:i') ?? '—', 'Commentaire', $this->inventory->closing_comment ?? ''],
-            $this->perimeterNote === null ? [] : [$this->perimeterNote],
+            $this->perimeterNote === null ? [null] : [$this->perimeterNote], // [null] : un tableau vide serait supprimé à l'écriture.
             ['N°', 'Désignation', 'Attendu', 'Site', 'Département attendu', 'Local attendu', 'État attendu', 'Résultat', 'Département constaté',
                 'Local constaté', 'État constaté', 'Observations', 'Pointé par', 'Pointé le', 'Régularisation'],
         ];

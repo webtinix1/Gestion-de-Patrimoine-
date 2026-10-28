@@ -50,7 +50,7 @@ class DepreciationScheduleExport extends DefaultValueBinder implements FromArray
         $rows = [
             ['Plan d\'amortissement '.$this->asset->number, $this->asset->label()],
             ['Montants en FCFA'],
-            [],
+            [null], // ligne vide : un tableau vide serait supprimé à l'écriture.
             ['Exercice', (string) $this->report['unit'], 'Valeur d\'origine', 'Base', 'Taux', 'Dotation', 'Cumul', 'VNC fin d\'exercice', 'Statut'],
         ];
 

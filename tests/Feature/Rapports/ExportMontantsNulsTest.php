@@ -32,11 +32,15 @@ it('écrit une VNC à 0 comme le nombre 0 dans le plan d\'amortissement Excel', 
     ];
 
     $sheet = feuilleExcel(new DepreciationScheduleExport($asset, $report));
-    $cell = $sheet->getCell('H4');
+    $data = DepreciationScheduleExport::HEADER_ROW + 1;
+    $cell = $sheet->getCell('H'.$data);
 
     expect($cell->getValue())->toBe(0)
         ->and($cell->getDataType())->toBe(DataType::TYPE_NUMERIC)
-        ->and($sheet->getCell('G4')->getValue())->toBe(120000);
+        ->and($sheet->getCell('G'.$data)->getValue())->toBe(120000)
+        // L'en-tête est bien à la ligne attendue, en gras : la ligne vide qui le précède est conservée.
+        ->and($sheet->getCell('A'.DepreciationScheduleExport::HEADER_ROW)->getValue())->toBe('Exercice')
+        ->and($sheet->getStyle('A'.DepreciationScheduleExport::HEADER_ROW)->getFont()->getBold())->toBeTrue();
 });
 
 it('écrit un montant à 0 comme le nombre 0 dans l\'export d\'un rapport, et laisse vide un montant absent', function () {
