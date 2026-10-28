@@ -46,6 +46,26 @@ Compatibilité vérifiée sur Packagist le 27/10/2026 : Laravel 13 exige PHP ^8.
 - **Documentation** : `docs/` ne contenait aucune consigne « via tinker » ; les mentions « E41 n'existe pas » de QL4-1, QL11-4 et des lots 3, 4 et 11 sont mises à jour.
 - **Tests** : `tests/Feature/Parametres/ParametresTest.php` (droits par rôle, URL directe et Livewire, bornes, numérotation verrouillée, durée de session appliquée, journal, identité dans un PDF, état du serveur).
 - **À vérifier à la main** : se connecter en administrateur, changer l'inactivité à 5 minutes, patienter 5 minutes sans rien faire puis recharger (retour à la connexion) ; changer le nom de l'Église puis ouvrir un PDF ; sur une base vierge, essayer les trois formats et voir le prochain numéro ; sur une base avec biens, constater les champs grisés ; lire l'onglet État du serveur sur le vrai serveur (le planificateur doit passer à « OK » une heure après l'activation de la tâche planifiée).
+## Lot 12 · Guides et documentation technique · 29/10/2026
+
+Deuxième partie du lot 12 (livrables de documentation). Reste pour le lot : la base initialisée avec les référentiels du client (données non fournies, QL12-10) et la recette (`docs/09-recette.md`).
+
+- **Fait** :
+  - Six guides en Markdown dans `docs/guides/` : `01-administrateur`, `02-gestionnaire-du-patrimoine`, `03-comptable`, `04-responsable-de-departement`, `05-consultation`, `06-administration` (utilisateurs, rôles et matrice, périmètres, structure, paramètres, sauvegarde et restauration). Chaque guide de profil : connexion, changement de mot de passe, ce que le profil voit et peut faire, tâches pas à pas, messages fréquents, ce qu'il ne peut pas faire, à qui s'adresser. Libellés de boutons relevés dans le code (`app/Filament/**`), droits dans `App\Support\DefaultRoles`, messages d'erreur dans `app/Actions/**`. Aucun mot de passe écrit : renvoi à `database/seeders/DemoSeeder.php` et à l'administrateur.
+  - Commande `php artisan patrimoine:guides {--sortie=storage/app/guides}` (`App\Console\Commands\GuidesCommand`) : Markdown vers HTML (`Str::markdown`, tableaux GFM, HTML brut retiré) puis PDF DomPDF par `PdfFactory` et le gabarit commun `pdf/layouts/document` (vue `pdf/guide`). Nom et sigle de l'Église lus dans `Settings` ; valeurs par défaut si la base n'est pas joignable (génération hors serveur). Aucune ressource distante. Dossier de sortie par défaut ajouté au `.gitignore`.
+  - `tests/Feature/Systeme/GuidesTest.php` : les six guides existent, un PDF par guide avec son titre lisible dans le PDF, aucune URL distante dans les PDF, aucun mot de passe de démonstration dans les guides.
+  - `docs/10-documentation-technique.md` : architecture (dossiers, Actions et Services, policies, périmètre, journal, `lock_version` RG-86, références sous verrou, amortissements et exercices, alertes et planificateur, PDF et Excel), modèle de données résumé, commandes, tests (dont variables `CONCURRENCE_DB_*`), conventions, ajout d'un module, points de vigilance tirés des revues.
+- **Décisions** : un guide d'administration distinct du guide « Administrateur » (usage quotidien) pour séparer l'utilisation et les opérations techniques ; les écrans sont décrits d'après le code, pas la maquette ; en l'absence d'écran Paramètres, le guide d'administration documente la modification par `Settings::set()` (invite `php artisan tinker`).
+- **Écarts maquette / code relevés en écrivant** :
+  - E41 « Paramètres » (identité, format du numéro, alertes, sécurité, état du serveur) n'existe pas : le menu Administration n'a que Utilisateurs, Rôles et permissions, Journal des opérations. Seuls le seuil d'immobilisation et le dégressif se règlent (Règles d'amortissement). Le nom et le sigle de l'Église, le format du numéro, les délais d'alerte et la taille des documents ne se changent que dans la table `settings`. La durée d'inactivité vient de `SESSION_LIFETIME` (`.env`) et non d'un paramètre (RG-85 la dit paramétrable).
+  - E07 : pas de bouton « Enregistrer et imprimer l'étiquette » ; le formulaire propose « Créer » et l'étiquette s'imprime depuis la fiche, la liste ou l'acquisition.
+  - E42 / RG-82 : « Mon espace » affiche un bloc Rapports, mais avec la matrice livrée le responsable de département (et la Consultation) n'a aucun rapport (QL11-1) ; le guide l'explique et indique le réglage.
+  - E39 : « Rôles et permissions » est une ressource du projet (cases par module et par droit), pas Filament Shield.
+  - Le modèle d'étiquette (E10) est une entrée du groupe Patrimoine, non listée dans la navigation de `docs/04`.
+  - Un document non rattaché peut être supprimé (action « Supprimer » de Documents, droit « supprimer » que la matrice livrée ne donne à personne) : seule exception à « rien ne se supprime », en plus des rôles personnalisés sans utilisateur.
+  - La colonne « Supprimer / sortir » de la matrice est vide pour tous les rôles livrés ; la sortie d'un bien repose sur « Créer » du module Sorties.
+- **Pas vérifié** : les écrans n'ont pas été parcourus dans un navigateur pour cette rédaction (libellés relevés dans le code) ; les PDF ont été générés et testés par lecture de leur texte, mais leur mise en page n'a pas été regardée à l'œil.
+- **Questions ouvertes ajoutées** : QL12-10.
 
 ## Lot 11 · Tableau de bord, alertes, rapports, espace responsable · 29/10/2026
 

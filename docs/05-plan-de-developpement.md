@@ -102,7 +102,8 @@ Sites, départements (multi-sites), services, locaux, catégories (préfixe, rè
 - [x] Pages 403, 404, 419 et message « serveur injoignable » en français. *Plus 401, 429, 500 et 503, aux couleurs du thème, sans ressource externe ; fenêtres du panneau (session expirée, serveur injoignable, erreur, accès refusé, maintenance) qui remplacent celles, anglaises, de Livewire.*
 - [x] Script d'installation pour le serveur local et procédure écrite (`docs/07-deploiement-local.md`). *`install.ps1` + `php artisan patrimoine:installer` / `patrimoine:verifier`, relançables ; testés sur une copie (SQLite) et sur MariaDB 11.5 ; essai sur un poste vierge à faire.*
 - [x] Commande de sauvegarde manuelle base + fichiers (si l'option est retenue, voir questions ouvertes). *`patrimoine:sauvegarder` avec contrôle d'intégrité, et `patrimoine:restaurer` sécurisée (Q20, QL12-3 à QL12-5) ; essai sur disque externe à faire.*
-- [ ] Guide utilisateur par profil (PDF), documentation technique, base initialisée avec les référentiels du client.
+- [x] Guide utilisateur par profil (PDF), documentation technique. *Six guides dans `docs/guides` (un par profil et un d'administration), PDF par `php artisan patrimoine:guides`, `docs/10-documentation-technique.md`.*
+- [ ] Base initialisée avec les référentiels du client. *Données du client non fournies : liste à demander en QL12-10.*
 - [ ] Recette : les 22 critères de la section 20 du cahier des charges vérifiés un par un et cochés dans `docs/09-recette.md`.
 
 **Total développement : environ 19 jours ouvrés, soit 4 semaines.** Le calendrier réel dépend surtout des réponses du client aux questions ouvertes (bloquantes pour les lots 3, 4 et 7) et de la recette.
