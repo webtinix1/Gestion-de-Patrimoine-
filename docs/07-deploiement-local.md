@@ -118,7 +118,7 @@ Un navigateur récent (Chrome, Edge ou Firefox), l'adresse en favori. Douchette 
 
 ## Messages d'erreur à connaître
 
-Pages françaises du lot 12 : 403 (accès refusé), 404, 419 (session expirée, 30 minutes d'inactivité), 429, 500, 503 (maintenance). Dans le panneau, une coupure du réseau ou l'arrêt du serveur affiche « Connexion au serveur perdue » avec un bouton Réessayer : les saisies restent à l'écran, ne pas actualiser la page. En cas de 500, le détail technique est dans `storage\logs\laravel.log`.
+Pages françaises du lot 12 : 403 (accès refusé), 404, 419 (session expirée ; 30 minutes d'inactivité par défaut, réglables dans Administration > Paramètres > Sécurité, sans toucher à `.env`), 429, 500, 503 (maintenance). Dans le panneau, une coupure du réseau ou l'arrêt du serveur affiche « Connexion au serveur perdue » avec un bouton Réessayer : les saisies restent à l'écran, ne pas actualiser la page. En cas de 500, le détail technique est dans `storage\logs\laravel.log`.
 
 ## Sauvegarde (option Q20, hors V1)
 
