@@ -16,7 +16,9 @@ use App\Services\Inventories\InventoryScope;
  *   inventaire contenu dans le périmètre de l'utilisateur (RG-81).
  * - Saisir (RG-47, RG-82) : droit « modifier », inventaire en cours, et être désigné (responsable ou
  *   participant) ou avoir le droit « créer » (gestionnaire). Les lignes restent limitées au périmètre.
- * - Valider et clôturer (RG-48) : droit « valider ».
+ * - Terminer la saisie, rouvrir, valider et clôturer (RG-48), régulariser : inventaire contenu dans le
+ *   périmètre de l'utilisateur (une personne seulement désignée ne valide pas) ; « valider » pour rouvrir
+ *   et clôturer ; « modifier » plus « créer » ou « valider » pour régulariser (QL9-7).
  * - Un inventaire ne se supprime jamais.
  */
 class InventoryPolicy
@@ -53,24 +55,31 @@ class InventoryPolicy
             && ($this->allows($user, PermissionAbility::Create) || $inventory->isDesignated($user));
     }
 
+    // Terminer la saisie arrête la saisie de tous : réservé à qui couvre tout l'inventaire (RG-81).
     public function submit(User $user, Inventory $inventory): bool
     {
-        return $this->enter($user, $inventory);
+        return $this->enter($user, $inventory) && $this->contains($user, $inventory);
     }
 
     public function reopen(User $user, Inventory $inventory): bool
     {
-        return $inventory->status === InventoryStatus::ToValidate && $this->allows($user, PermissionAbility::Validate);
+        return $inventory->status === InventoryStatus::ToValidate && $this->allows($user, PermissionAbility::Validate)
+            && $this->contains($user, $inventory);
     }
 
+    // RG-48, RG-81 : valider engage tout l'inventaire ; une personne seulement désignée ne valide pas.
     public function close(User $user, Inventory $inventory): bool
     {
-        return $inventory->status === InventoryStatus::ToValidate && $this->allows($user, PermissionAbility::Validate);
+        return $inventory->status === InventoryStatus::ToValidate && $this->allows($user, PermissionAbility::Validate)
+            && $this->contains($user, $inventory);
     }
 
     public function regularize(User $user, Inventory $inventory): bool
     {
-        return $inventory->isClosed() && $this->allows($user, PermissionAbility::Update);
+        // QL9-7 : le responsable de département saisit mais ne régularise pas.
+        return $inventory->isClosed() && $this->allows($user, PermissionAbility::Update)
+            && ($this->allows($user, PermissionAbility::Create) || $this->allows($user, PermissionAbility::Validate))
+            && $this->contains($user, $inventory);
     }
 
     public function export(User $user, Inventory $inventory): bool
@@ -100,7 +109,12 @@ class InventoryPolicy
 
     private function organizes(User $user, Inventory $inventory): bool
     {
-        return $this->create($user) && app(InventoryScope::class)->isContainedIn($inventory, $user);
+        return $this->create($user) && $this->contains($user, $inventory);
+    }
+
+    private function contains(User $user, Inventory $inventory): bool
+    {
+        return app(InventoryScope::class)->isContainedIn($inventory, $user);
     }
 
     private function allows(User $user, PermissionAbility $ability): bool

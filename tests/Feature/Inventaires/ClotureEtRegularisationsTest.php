@@ -35,9 +35,9 @@ function enteredInventory(object $w): Inventory
     $inventory = siegeInventory($w);
     $record = app(RecordInventoryEntry::class);
 
-    $record->mark($inventory, $w->manager, lineOf($inventory, $w->pupitre)->id, 'missing');
+    $record->mark($inventory, $w->manager, lineOf($inventory, $w->pupitre)->id, 'missing', lineOf($inventory, $w->pupitre)->lock_version);
     $record->scan($inventory, $w->manager, 'PAT-000221', $w->salleCulte->id);
-    $record->mark($inventory, $w->manager, lineOf($inventory, $w->enceinte)->id, 'condition', ['condition_id' => $w->aReparer->id]);
+    $record->mark($inventory, $w->manager, lineOf($inventory, $w->enceinte)->id, 'condition', lineOf($inventory, $w->enceinte)->lock_version, ['condition_id' => $w->aReparer->id]);
     $record->scan($inventory, $w->manager, 'PAT-000700', $w->salleCulte->id);
     $record->addUnregistered($inventory, $w->manager, ['description' => 'Ventilateur sur pied', 'site_id' => $w->siege->id, 'department_id' => $w->louange->id, 'room_id' => $w->salleCulte->id, 'condition_id' => $w->bon->id]);
 
@@ -147,7 +147,7 @@ it('régularise une autre affectation par un transfert tracé et lié à la lign
         ->and($line->resolved_by)->toBe($this->w->manager->id)
         ->and($line->result)->toBe(InventoryLineResult::OtherAssignment)
         ->and(Activity::query()->where('event', 'inventory_line_resolved')->where('subject_id', $this->w->bureauMeuble->id)->exists())->toBeTrue()
-        ->and(fn () => app(RegularizeInventoryLine::class)->transfer($line, $this->w->manager, ['site_id' => $this->w->siege->id, 'department_id' => $this->w->jeunesse->id, 'moved_on' => today()->toDateString()]))
+        ->and(fn () => app(RegularizeInventoryLine::class)->transfer($line, $this->w->manager, ['site_id' => $this->w->siege->id, 'department_id' => $this->w->jeunesse->id, 'moved_on' => today()->toDateString()], $this->w->bureauMeuble->fresh()->lock_version))
         ->toThrow(ValidationException::class);
 });
 
@@ -225,29 +225,29 @@ it('ne laisse régulariser que les droits de l\'opération concernée', function
     $inventory = closedInventory($this->w);
     $this->actingAs($this->w->headLouange);
 
-    expect(fn () => app(RegularizeInventoryLine::class)->transfer(lineOf($inventory, $this->w->bureauMeuble), $this->w->headLouange, ['site_id' => $this->w->siege->id, 'department_id' => $this->w->louange->id, 'room_id' => $this->w->salleCulte->id, 'moved_on' => today()->toDateString()]))
+    expect(fn () => app(RegularizeInventoryLine::class)->transfer(lineOf($inventory, $this->w->bureauMeuble), $this->w->headLouange, ['site_id' => $this->w->siege->id, 'department_id' => $this->w->louange->id, 'room_id' => $this->w->salleCulte->id, 'moved_on' => today()->toDateString()], $this->w->bureauMeuble->fresh()->lock_version))
         ->toThrow(AuthorizationException::class)
-        ->and(fn () => app(RegularizeInventoryLine::class)->updateCondition(lineOf($inventory, $this->w->enceinte), $this->w->headLouange))
+        ->and(fn () => app(RegularizeInventoryLine::class)->updateCondition(lineOf($inventory, $this->w->enceinte), $this->w->headLouange, $this->w->enceinte->fresh()->lock_version))
         ->toThrow(AuthorizationException::class);
 });
 
-it('fournit au lot 10 l\'action publique ResolveInventoryLine pour la sortie pour perte (contrat)', function () {
+it('n\'accepte comme sortie pour perte qu\'une sortie App\Models\Disposal du bien (contrat lot 10)', function () {
     $inventory = closedInventory($this->w);
     $line = lineOf($inventory, $this->w->pupitre);
+    $movement = app(MovementRecorder::class)->record($this->w->pupitre, null, ['site_id' => $this->w->siege->id, 'department_id' => $this->w->louange->id], today());
 
-    // Une sortie du lot 10 porte asset_id ; un mouvement en tient lieu ici.
-    $wrong = Movement::query()->where('asset_id', $this->w->enceinte->id)->first() ?? app(MovementRecorder::class)->record($this->w->enceinte, null, ['site_id' => $this->w->siege->id, 'department_id' => $this->w->louange->id], today());
-    $right = app(MovementRecorder::class)->record($this->w->pupitre, null, ['site_id' => $this->w->siege->id, 'department_id' => $this->w->louange->id], today());
+    // Le cas positif (vraie sortie du lot 10) est testé à l'intégration : la classe n'existe pas dans ce lot.
+    expect(ResolveInventoryLine::DISPOSAL_CLASS)->toBe('App\Models\Disposal')
+        ->and(fn () => app(ResolveInventoryLine::class)($line, InventoryResolution::Disposal, $movement))->toThrow(ValidationException::class)
+        ->and(fn () => app(ResolveInventoryLine::class)($line, InventoryResolution::Disposal, $this->w->pupitre))->toThrow(ValidationException::class)
+        ->and(fn () => app(ResolveInventoryLine::class)($line, InventoryResolution::Disposal, null))->toThrow(ValidationException::class)
+        ->and(fn () => app(ResolveInventoryLine::class)($line, 'transfer', $movement))->toThrow(ValidationException::class)
+        ->and($line->fresh()->resolution)->toBeNull();
 
-    expect(fn () => app(ResolveInventoryLine::class)($line, InventoryResolution::Disposal, $wrong))->toThrow(ValidationException::class)
-        ->and(fn () => app(ResolveInventoryLine::class)($line, 'transfer', $right))->toThrow(ValidationException::class)
-        ->and(fn () => app(ResolveInventoryLine::class)($line, InventoryResolution::Disposal, null))->toThrow(ValidationException::class);
+    app(ResolveInventoryLine::class)($line, 'found', null, 'Retrouvé.');
 
-    app(ResolveInventoryLine::class)($line, 'disposal', $right);
-
-    expect($line->fresh()->resolution)->toBe(InventoryResolution::Disposal)
-        ->and($line->fresh()->resolution_ref_id)->toBe($right->id)
-        ->and(fn () => app(ResolveInventoryLine::class)($line->fresh(), 'disposal', $right))->toThrow(ValidationException::class);
+    expect($line->fresh()->resolution)->toBe(InventoryResolution::Found)
+        ->and(fn () => app(ResolveInventoryLine::class)($line->fresh(), 'found', null))->toThrow(ValidationException::class);
 });
 
 it('n\'affiche le lien de sortie pour perte que si la page des sorties existe (contrat lot 10)', function () {

@@ -47,9 +47,9 @@ it('enregistre les boutons Présent, Manquant, Autre affectation et l\'état con
     $enceinte = lineOf($this->inventory, $this->w->enceinte);
     $jeune = lineOf($this->inventory, $this->w->jeune);
 
-    $this->record->mark($this->inventory, $this->w->manager, $pupitre->id, 'missing', [], $pupitre->lock_version);
-    $this->record->mark($this->inventory, $this->w->manager, $enceinte->id, 'condition', ['condition_id' => $this->w->aReparer->id], $enceinte->lock_version, 'Ne s\'allume plus.');
-    $this->record->mark($this->inventory, $this->w->manager, $jeune->id, 'other_assignment', ['department_id' => $this->w->louange->id], $jeune->lock_version);
+    $this->record->mark($this->inventory, $this->w->manager, $pupitre->id, 'missing', $pupitre->lock_version);
+    $this->record->mark($this->inventory, $this->w->manager, $enceinte->id, 'condition', $enceinte->lock_version, ['condition_id' => $this->w->aReparer->id], 'Ne s\'allume plus.');
+    $this->record->mark($this->inventory, $this->w->manager, $jeune->id, 'other_assignment', $jeune->lock_version, ['department_id' => $this->w->louange->id]);
 
     expect($pupitre->fresh()->result)->toBe(InventoryLineResult::Missing)
         ->and($enceinte->fresh()->result)->toBe(InventoryLineResult::ConditionMismatch)
@@ -59,21 +59,21 @@ it('enregistre les boutons Présent, Manquant, Autre affectation et l\'état con
         ->and($jeune->fresh()->found_department_id)->toBe($this->w->louange->id);
 
     // Présent après « état différent » : le bien reste à un état différent ; état conforme : présent.
-    $this->record->mark($this->inventory, $this->w->manager, $enceinte->id, 'present', [], $enceinte->fresh()->lock_version);
+    $this->record->mark($this->inventory, $this->w->manager, $enceinte->id, 'present', $enceinte->fresh()->lock_version);
     expect($enceinte->fresh()->result)->toBe(InventoryLineResult::ConditionMismatch);
 
-    $this->record->mark($this->inventory, $this->w->manager, $enceinte->id, 'condition', ['condition_id' => $this->w->bon->id], $enceinte->fresh()->lock_version);
+    $this->record->mark($this->inventory, $this->w->manager, $enceinte->id, 'condition', $enceinte->fresh()->lock_version, ['condition_id' => $this->w->bon->id]);
     expect($enceinte->fresh()->result)->toBe(InventoryLineResult::Present);
 
     // Le pupitre manquant est finalement retrouvé.
-    $this->record->mark($this->inventory, $this->w->manager, $pupitre->id, 'present', [], $pupitre->fresh()->lock_version);
+    $this->record->mark($this->inventory, $this->w->manager, $pupitre->id, 'present', $pupitre->fresh()->lock_version);
     expect($pupitre->fresh()->result)->toBe(InventoryLineResult::Present);
 });
 
 it('refuse une autre affectation identique à l\'affectation enregistrée', function () {
     $line = lineOf($this->inventory, $this->w->pupitre);
 
-    expect(fn () => $this->record->mark($this->inventory, $this->w->manager, $line->id, 'other_assignment', ['department_id' => $this->w->louange->id, 'room_id' => $this->w->salleCulte->id]))
+    expect(fn () => $this->record->mark($this->inventory, $this->w->manager, $line->id, 'other_assignment', $line->lock_version, ['department_id' => $this->w->louange->id, 'room_id' => $this->w->salleCulte->id]))
         ->toThrow(ValidationException::class);
 });
 
@@ -127,7 +127,7 @@ it('signale un code inconnu sans rien enregistrer', function () {
 it('n\'écrase jamais silencieusement une saisie : la douchette ne remplace pas un résultat différent (RG-47)', function () {
     $line = lineOf($this->inventory, $this->w->pupitre);
     $this->actingAs($this->w->headLouange);
-    $this->record->mark($this->inventory, $this->w->headLouange, $line->id, 'missing', [], $line->lock_version);
+    $this->record->mark($this->inventory, $this->w->headLouange, $line->id, 'missing', $line->lock_version);
 
     $this->actingAs($this->w->manager);
     $outcome = $this->record->scan($this->inventory, $this->w->manager, 'PAT-000241');
@@ -153,13 +153,13 @@ it('refuse un bouton appuyé sur une ligne pointée entre-temps par un autre pos
 
     $this->actingAs($this->w->headLouange);
 
-    expect(fn () => $this->record->mark($this->inventory, $this->w->headLouange, $line->id, 'missing', [], $seenVersion))
+    expect(fn () => $this->record->mark($this->inventory, $this->w->headLouange, $line->id, 'missing', $seenVersion))
         ->toThrow(InventoryLineConflictException::class, 'Albertine Okemba');
 
     expect($line->fresh()->result)->toBe(InventoryLineResult::Present);
 
     // Après rechargement, la correction est possible et tracée avec l'avant et l'après.
-    $this->record->mark($this->inventory, $this->w->headLouange, $line->id, 'missing', [], $line->fresh()->lock_version);
+    $this->record->mark($this->inventory, $this->w->headLouange, $line->id, 'missing', $line->fresh()->lock_version);
     $last = Activity::query()->where('event', 'inventory_line_recorded')->latest('id')->first();
 
     expect($line->fresh()->result)->toBe(InventoryLineResult::Missing)
@@ -184,7 +184,7 @@ it('trace chaque saisie par bien et par utilisateur (RG-70)', function () {
 it('tient les compteurs à jour (E20)', function () {
     $this->record->scan($this->inventory, $this->w->manager, 'PAT-000241');
     $this->record->scan($this->inventory, $this->w->manager, 'PAT-000221', $this->w->salleCulte->id);
-    $this->record->mark($this->inventory, $this->w->manager, lineOf($this->inventory, $this->w->enceinte)->id, 'missing');
+    $this->record->mark($this->inventory, $this->w->manager, lineOf($this->inventory, $this->w->enceinte)->id, 'missing', lineOf($this->inventory, $this->w->enceinte)->lock_version);
     $this->record->scan($this->inventory, $this->w->manager, 'PAT-000700');
     $this->record->addUnregistered($this->inventory, $this->w->manager, ['description' => 'Ventilateur', 'site_id' => $this->w->siege->id, 'department_id' => $this->w->louange->id]);
 
@@ -215,7 +215,7 @@ it('limite la saisie d\'un responsable aux biens de son périmètre (RG-81, RG-8
     $jeune = lineOf($this->inventory, $this->w->jeune);
 
     expect($this->record->scan($this->inventory, $this->w->headLouange, 'PAT-000306')->status)->toBe(ScanOutcome::UNKNOWN)
-        ->and(fn () => $this->record->mark($this->inventory, $this->w->headLouange, $jeune->id, 'missing'))->toThrow(ValidationException::class)
+        ->and(fn () => $this->record->mark($this->inventory, $this->w->headLouange, $jeune->id, 'missing', $jeune->lock_version))->toThrow(ValidationException::class)
         ->and(fn () => $this->record->addUnregistered($this->inventory, $this->w->headLouange, ['description' => 'Chaise', 'site_id' => $this->w->siege->id, 'department_id' => $this->w->jeunesse->id]))
         ->toThrow(ValidationException::class)
         ->and($jeune->fresh()->result)->toBe(InventoryLineResult::Pending)

@@ -145,6 +145,14 @@ class InventoryLine extends Model
     }
 
     /**
+     * @return BelongsTo<Site, $this>
+     */
+    public function expectedSite(): BelongsTo
+    {
+        return $this->belongsTo(Site::class, 'expected_site_id')->withoutGlobalScopes();
+    }
+
+    /**
      * @return BelongsTo<Room, $this>
      */
     public function expectedRoom(): BelongsTo

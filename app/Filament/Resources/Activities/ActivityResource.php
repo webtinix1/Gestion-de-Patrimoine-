@@ -8,6 +8,7 @@ use App\Models\Asset;
 use App\Models\Inventory;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\Inventories\InventoryScope;
 use BackedEnum;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DatePicker;
@@ -82,12 +83,19 @@ class ActivityResource extends Resource
             return $query;
         }
 
-        // Les inventaires suivent aussi le périmètre (scope InventoryPerimeterScope).
-        $types = [(new Asset)->getMorphClass(), (new Inventory)->getMorphClass()];
+        $inventoryType = (new Inventory)->getMorphClass();
+        $types = [(new Asset)->getMorphClass(), $inventoryType];
 
         return $query->where(fn (Builder $query) => $query
             ->where(fn (Builder $query) => $query->whereNull('subject_type')->orWhereNotIn('subject_type', $types))
-            ->orWhereHasMorph('subject', [Asset::class, Inventory::class]));
+            ->orWhereHasMorph('subject', [Asset::class])
+            // Entrée portant sur un inventaire : visible si le périmètre contient l'inventaire, ou si le
+            // bien non enregistré qu'elle trace est dans le périmètre.
+            ->orWhere(fn (Builder $query) => $query->where('subject_type', $inventoryType)
+                ->where(fn (Builder $query) => app(InventoryScope::class)->whereFoundWithin(
+                    $query->whereIn('subject_id', app(InventoryScope::class)->containedIn($user)->select('id')),
+                    $user,
+                ))));
     }
 
     public static function table(Table $table): Table

@@ -88,7 +88,7 @@ it('saisit à la douchette depuis E20 : code + Entrée, compteurs à jour', func
         ->assertSee('présent, affectation conforme')
         ->call('mark', lineOf($inventory, $this->w->enceinte)->id, 'missing', lineOf($inventory, $this->w->enceinte)->lock_version)
         ->call('setCondition', lineOf($inventory, $this->w->bureauMeuble)->id, $this->w->aReparer->id, lineOf($inventory, $this->w->bureauMeuble)->lock_version)
-        ->callAction('otherAssignment', ['department_id' => $this->w->jeunesse->id], ['line' => lineOf($inventory, $this->w->pret)->id, 'version' => lineOf($inventory, $this->w->pret)->lock_version])
+        ->callAction('otherAssignment', ['room_id' => $this->w->bureau->id], ['line' => lineOf($inventory, $this->w->pret)->id, 'version' => lineOf($inventory, $this->w->pret)->lock_version])
         ->callAction('addUnregistered', ['description' => 'Ventilateur sur pied', 'site_id' => $this->w->siege->id, 'department_id' => $this->w->louange->id])
         ->assertSee('Ventilateur sur pied');
 
@@ -205,7 +205,7 @@ it('valide et clôture depuis E21, puis régularise depuis le rapport', function
     $record = app(RecordInventoryEntry::class);
     $this->actingAs($this->w->manager);
     $record->scan($inventory, $this->w->manager, 'PAT-000221', $this->w->salleCulte->id);
-    $record->mark($inventory, $this->w->manager, lineOf($inventory, $this->w->pupitre)->id, 'missing');
+    $record->mark($inventory, $this->w->manager, lineOf($inventory, $this->w->pupitre)->id, 'missing', lineOf($inventory, $this->w->pupitre)->lock_version);
     app(SubmitInventory::class)($inventory, $this->w->manager);
 
     livewire(InventoryReportPage::class, ['record' => $inventory->getKey()])
@@ -270,7 +270,7 @@ it('exporte le procès-verbal en PDF et le rapport en Excel (RG-49)', function (
 it('génère un PV avec les sections d\'écart et les emplacements de signature, sans ressource distante', function () {
     $inventory = siegeInventory($this->w);
     $this->actingAs($this->w->manager);
-    app(RecordInventoryEntry::class)->mark($inventory, $this->w->manager, lineOf($inventory, $this->w->pupitre)->id, 'missing');
+    app(RecordInventoryEntry::class)->mark($inventory, $this->w->manager, lineOf($inventory, $this->w->pupitre)->id, 'missing', lineOf($inventory, $this->w->pupitre)->lock_version);
 
     $html = view('pdf.inventory-report', [
         'inventory' => $inventory->load(['manager', 'participants.user', 'participants.room']),

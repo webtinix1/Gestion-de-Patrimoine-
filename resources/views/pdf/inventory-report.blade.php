@@ -36,6 +36,10 @@
         · Édité le {{ $editedAt->format('d/m/Y à H:i') }}
     </p>
 
+    @if ($perimeterNote ?? null)
+        <p class="meta" style="font-weight:bold;color:#8A5A00">{{ $perimeterNote }}. Les biens hors de ce périmètre n'y figurent pas.</p>
+    @endif
+
     @if ($inventory->participants->isNotEmpty())
         <p class="meta">Participants : {{ $inventory->participants->map(fn ($p) => $p->user->fullName().($p->room ? ' ('.$p->room->name.')' : ''))->join(', ') }}</p>
     @endif

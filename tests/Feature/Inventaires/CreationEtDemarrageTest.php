@@ -75,7 +75,7 @@ it('n\'ajoute pas à la liste un bien entré dans le périmètre après le déma
     expect(InventoryLine::query()->withoutGlobalScopes()->where('inventory_id', $inventory->id)->count())->toBe(6)
         ->and(InventoryLine::query()->withoutGlobalScopes()->where('asset_id', $this->w->annexeBien->id)->exists())->toBeFalse();
 
-    expect(fn () => app(StartInventory::class)($inventory, $this->w->manager))->toThrow(AuthorizationException::class);
+    expect(fn () => app(StartInventory::class)($inventory, $this->w->manager))->toThrow(ValidationException::class, 'déjà démarré');
 });
 
 it('applique chaque type de périmètre et le filtre croisé par site (RG-44)', function (string $type, string $scope, ?string $site, array $expected) {

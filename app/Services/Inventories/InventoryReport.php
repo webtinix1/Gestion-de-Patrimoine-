@@ -3,8 +3,10 @@
 namespace App\Services\Inventories;
 
 use App\Enums\InventoryLineResult;
+use App\Models\Department;
 use App\Models\Inventory;
 use App\Models\InventoryLine;
+use App\Models\Site;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -123,10 +125,30 @@ class InventoryReport
     public function all(Inventory $inventory): Collection
     {
         return $this->lines($inventory)
-            ->with(['asset.category', 'expectedRoom', 'expectedDepartment', 'expectedCondition', 'foundRoom', 'foundDepartment', 'foundSite', 'foundCondition', 'checker'])
+            ->with(['asset.category', 'expectedSite', 'expectedRoom', 'expectedDepartment', 'expectedCondition', 'foundRoom', 'foundDepartment', 'foundSite', 'foundCondition', 'checker'])
             ->get()
             ->sortBy(fn (InventoryLine $line): string => ($line->asset->number ?? 'ZZZ').str_pad((string) $line->id, 10, '0', STR_PAD_LEFT))
             ->values();
+    }
+
+    /**
+     * RG-81 : mention des exports d'un utilisateur au périmètre limité.
+     */
+    public static function perimeterNote(User $user): ?string
+    {
+        $sites = $user->perimeterSiteIds();
+        $departments = $user->perimeterDepartmentIds();
+
+        if ($sites === null && $departments === null) {
+            return null;
+        }
+
+        $parts = array_filter([
+            $sites === null ? null : 'sites : '.Site::query()->withoutGlobalScopes()->whereKey($sites)->orderBy('name')->pluck('name')->join(', '),
+            $departments === null ? null : 'départements : '.Department::query()->withoutGlobalScopes()->whereKey($departments)->orderBy('name')->pluck('name')->join(', '),
+        ]);
+
+        return 'Extrait limité au périmètre de '.$user->fullName().' ('.implode(' ; ', $parts).')';
     }
 
     public static function userName(?User $user): string

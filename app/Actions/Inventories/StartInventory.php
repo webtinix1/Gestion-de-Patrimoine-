@@ -37,12 +37,17 @@ class StartInventory
         return DB::transaction(function () use ($inventory, $user): Inventory {
             $current = Inventory::query()->lockForUpdate()->find($inventory->getKey());
 
-            if (! $current instanceof Inventory || ! $user->can('start', $current)) {
-                throw new AuthorizationException('Vous ne pouvez pas démarrer cet inventaire.');
+            if (! $current instanceof Inventory) {
+                throw new AuthorizationException('Inventaire introuvable.');
             }
 
+            // Statut d'abord : un second démarrage (deux postes, page restée ouverte) reçoit un message clair.
             if ($current->status !== InventoryStatus::Planned) {
                 throw ValidationException::withMessages(['inventory' => 'Cet inventaire est déjà démarré : sa liste est figée.']);
+            }
+
+            if (! $user->can('start', $current)) {
+                throw new AuthorizationException('Vous ne pouvez pas démarrer cet inventaire.');
             }
 
             $now = now();

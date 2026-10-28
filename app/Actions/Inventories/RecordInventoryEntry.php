@@ -117,9 +117,9 @@ class RecordInventoryEntry
      * Boutons de la ligne : Présent, Manquant, Autre affectation, état constaté, observation.
      *
      * @param  array{room_id?: mixed, department_id?: mixed, condition_id?: mixed}  $found
-     * @param  int|null  $expectedVersion  RG-47 : version de la ligne affichée
+     * @param  int  $expectedVersion  RG-47 : version de la ligne affichée, toujours exigée
      */
-    public function mark(Inventory $inventory, User $user, int $lineId, string $intent, array $found = [], ?int $expectedVersion = null, ?string $notes = null): InventoryLine
+    public function mark(Inventory $inventory, User $user, int $lineId, string $intent, int $expectedVersion, array $found = [], ?string $notes = null): InventoryLine
     {
         if (! in_array($intent, self::INTENTS, true)) {
             throw ValidationException::withMessages(['intent' => 'Saisie inconnue.']);
@@ -151,7 +151,7 @@ class RecordInventoryEntry
                 throw ValidationException::withMessages(['line' => 'Cette ligne est introuvable dans votre périmètre.']);
             }
 
-            if ($expectedVersion !== null && $line->lock_version !== $expectedVersion) {
+            if ($line->lock_version !== $expectedVersion) {
                 throw new InventoryLineConflictException(
                     $line->asset_id ? (Asset::query()->withoutGlobalScopes()->find($line->asset_id)->number ?? '—') : 'Ce bien',
                     $line->result,
@@ -203,7 +203,7 @@ class RecordInventoryEntry
 
             // Une observation seule ne vaut pas pointage.
             $line->forceFill($intent === 'note' ? [] : ['checked_by' => $user->id, 'checked_at' => now()])->save();
-            $this->journal->line($line, $current, $line->getOriginal('result') === InventoryLineResult::Pending ? [] : $before, $user);
+            $this->journal->line($line, $current, $before, $user);
 
             return $line;
         }, attempts: 5);
@@ -344,6 +344,16 @@ class RecordInventoryEntry
      */
     private function otherAssignment(InventoryLine $line, ?Room $room, ?int $departmentId): array
     {
+        // QL9-12 : le constat se fait vers le périmètre de l'utilisateur ou l'affectation attendue de la ligne.
+        if ($departmentId !== null && $departmentId !== $line->expected_department_id
+            && ! Department::query()->whereKey($departmentId)->exists()) {
+            throw ValidationException::withMessages(['department_id' => 'Choisissez un département de votre périmètre ou le département attendu.']);
+        }
+
+        if ($room !== null && $room->id !== $line->expected_room_id && ! Room::query()->whereKey($room->id)->exists()) {
+            throw ValidationException::withMessages(['room_id' => 'Choisissez un local de votre périmètre ou le local attendu.']);
+        }
+
         $roomDiffers = $room !== null && $room->id !== $line->expected_room_id;
         $departmentDiffers = $departmentId !== null && $departmentId !== $line->expected_department_id;
 

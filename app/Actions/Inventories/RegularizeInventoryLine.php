@@ -36,7 +36,7 @@ class RegularizeInventoryLine
      *
      * @param  array<string, mixed>  $data  données du transfert (TransferAssets)
      */
-    public function transfer(InventoryLine $line, User $user, array $data, ?int $expectedVersion = null): InventoryLine
+    public function transfer(InventoryLine $line, User $user, array $data, int $expectedVersion): InventoryLine
     {
         [$line, $inventory, $asset] = $this->prepare($line, $user, InventoryResolution::Transfer);
         $asset = $this->required($asset);
@@ -45,7 +45,7 @@ class RegularizeInventoryLine
         $data['notes'] = trim(($data['notes'] ?? '').' Inventaire '.$inventory->reference.'.');
 
         return DB::transaction(function () use ($line, $asset, $data, $expectedVersion, $user): InventoryLine {
-            $movement = app(TransferAssets::class)([$asset], $data, $expectedVersion === null ? [] : [$asset->id => $expectedVersion])->sole();
+            $movement = app(TransferAssets::class)([$asset], $data, [$asset->id => $expectedVersion])->sole();
 
             return ($this->resolve)($line, InventoryResolution::Transfer, $movement, null, $user);
         }, attempts: 5);
@@ -54,7 +54,7 @@ class RegularizeInventoryLine
     /**
      * État différent : la fiche prend l'état constaté (UpdateAsset, RG-86).
      */
-    public function updateCondition(InventoryLine $line, User $user, ?int $expectedVersion = null): InventoryLine
+    public function updateCondition(InventoryLine $line, User $user, int $expectedVersion): InventoryLine
     {
         [$line, , $asset] = $this->prepare($line, $user, InventoryResolution::ConditionUpdate);
         $asset = $this->required($asset);
@@ -71,7 +71,7 @@ class RegularizeInventoryLine
             $data = $asset->only($asset->getFillable());
             $data['asset_condition_id'] = $line->found_condition_id;
 
-            app(UpdateAsset::class)($asset, $data, $expectedVersion ?? $asset->lock_version);
+            app(UpdateAsset::class)($asset, $data, $expectedVersion);
 
             return ($this->resolve)($line, InventoryResolution::ConditionUpdate, $asset, null, $user);
         }, attempts: 5);

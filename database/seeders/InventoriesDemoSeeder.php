@@ -77,28 +77,28 @@ class InventoriesDemoSeeder extends Seeder
         $present = $rest->diffKeys($elsewhere)->diffKeys($damaged);
 
         foreach ($missing as $line) {
-            $record->mark($inventory, $okemba, $line->id, 'missing');
+            $record->mark($inventory, $okemba, $line->id, 'missing', $this->version($line->id));
         }
 
-        $record->mark($inventory, $okemba, (int) $missing->first()?->id, 'note', [], null, 'Probablement emporté lors de la convention d\'août. Recherche auprès de la paroisse en cours.');
+        $record->mark($inventory, $okemba, (int) $missing->first()?->id, 'note', $this->version((int) $missing->first()?->id), [], 'Probablement emporté lors de la convention d\'août. Recherche auprès de la paroisse en cours.');
 
         foreach ($elsewhere as $line) {
-            $record->mark($inventory, $okemba, $line->id, 'other_assignment', ['department_id' => $other]);
+            $record->mark($inventory, $okemba, $line->id, 'other_assignment', $this->version($line->id), ['department_id' => $other]);
         }
 
         foreach ($damaged as $line) {
-            $record->mark($inventory, $okemba, $line->id, 'condition', ['condition_id' => $repair], null, 'Ne fonctionne plus, devis de réparation demandé.');
+            $record->mark($inventory, $okemba, $line->id, 'condition', $this->version($line->id), ['condition_id' => $repair], 'Ne fonctionne plus, devis de réparation demandé.');
         }
 
         foreach ($present as $line) {
-            $record->mark($inventory, $okemba, $line->id, 'present');
+            $record->mark($inventory, $okemba, $line->id, 'present', $this->version($line->id));
         }
 
         $room = Room::query()->withoutGlobalScopes()->where('code', 'SIE-CPT')->first();
         $record->addUnregistered($inventory, $okemba, [
             'description' => 'Imprimante HP LaserJet sans étiquette',
             'site_id' => $site->id,
-            'department_id' => $room?->department_id ?? Department::query()->withoutGlobalScopes()->where('code', 'FIN')->value('id'),
+            'department_id' => $room->department_id ?? Department::query()->withoutGlobalScopes()->where('code', 'FIN')->value('id'),
             'room_id' => $room?->id,
             'condition_id' => AssetCondition::query()->where('label', 'Bon état')->value('id'),
         ]);
@@ -116,8 +116,9 @@ class InventoriesDemoSeeder extends Seeder
             'room_id' => $asset->room_id,
             'holder_id' => $asset->holder_id,
             'moved_on' => today()->toDateString(),
-        ]);
-        $regularize->updateCondition(InventoryLine::query()->withoutGlobalScopes()->findOrFail($damaged->first()?->id), $okemba);
+        ], $asset->lock_version);
+        $damagedLine = InventoryLine::query()->withoutGlobalScopes()->findOrFail($damaged->first()?->id);
+        $regularize->updateCondition($damagedLine, $okemba, (int) Asset::query()->withoutGlobalScopes()->whereKey($damagedLine->asset_id)->value('lock_version'));
         $regularize->markFound(InventoryLine::query()->withoutGlobalScopes()->findOrFail($missing->last()?->id), $okemba, 'Retrouvé le 03/10 au magasin central.');
 
         // Dates de la maquette (22/09 au 30/09), sans passer par les modèles (inventaire clôturé, figé).
@@ -153,12 +154,12 @@ class InventoriesDemoSeeder extends Seeder
 
         foreach ($lines->take($checked) as $index => $line) {
             $index < 2
-                ? $record->mark($inventory, $ondongo, $line->id, 'missing')
-                : $record->mark($inventory, $ondongo, $line->id, 'present');
+                ? $record->mark($inventory, $ondongo, $line->id, 'missing', $this->version($line->id))
+                : $record->mark($inventory, $ondongo, $line->id, 'present', $this->version($line->id));
         }
 
         if (($damaged = $lines->get($checked - 1)) !== null) {
-            $record->mark($inventory, $ondongo, $damaged->id, 'condition', ['condition_id' => AssetCondition::query()->where('label', 'À réparer')->value('id')]);
+            $record->mark($inventory, $ondongo, $damaged->id, 'condition', $this->version($damaged->id), ['condition_id' => AssetCondition::query()->where('label', 'À réparer')->value('id')]);
         }
 
         $room = Room::query()->withoutGlobalScopes()->where('code', 'TAL-CUL')->first();
@@ -184,6 +185,12 @@ class InventoriesDemoSeeder extends Seeder
             ->orderBy('asset_id')
             ->get()
             ->values();
+    }
+
+    /** RG-47 : la version réelle de la ligne, comme l'écran la transmet. */
+    private function version(int $lineId): int
+    {
+        return (int) InventoryLine::query()->withoutGlobalScopes()->whereKey($lineId)->value('lock_version');
     }
 
     /**

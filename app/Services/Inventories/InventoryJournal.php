@@ -59,6 +59,9 @@ class InventoryJournal
                 'inventory' => $inventory->reference,
                 'inventory_id' => $inventory->getKey(),
                 'line_id' => $line->getKey(),
+                // RG-81 : périmètre d'un bien non enregistré, pour filtrer le journal.
+                'found_site_id' => $line->asset_id === null ? $line->found_site_id : null,
+                'found_department_id' => $line->asset_id === null ? $line->found_department_id : null,
             ])
             ->log($description.' '.$inventory->reference);
     }

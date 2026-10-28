@@ -114,6 +114,54 @@ class InventoryScope
     }
 
     /**
+     * Inventaires contenus dans le périmètre de l'utilisateur (sans compter la désignation).
+     *
+     * @return Builder<Inventory>
+     */
+    public function containedIn(User $user): Builder
+    {
+        $query = Inventory::query()->withoutGlobalScopes();
+        $sites = $user->perimeterSiteIds();
+        $departments = $user->perimeterDepartmentIds();
+
+        if ($sites !== null) {
+            $query->whereIn('perimeter_site_id', $sites);
+        }
+
+        if ($departments !== null) {
+            $query->whereIn('perimeter_department_id', $departments);
+        }
+
+        return $query;
+    }
+
+    /**
+     * Journal : ajoute « ou bien constaté (site et département) dans le périmètre » à une requête.
+     *
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  Builder<TModel>  $query
+     * @return Builder<TModel>
+     */
+    public function whereFoundWithin(Builder $query, User $user): Builder
+    {
+        $sites = $user->perimeterSiteIds();
+        $departments = $user->perimeterDepartmentIds();
+
+        return $query->orWhere(function (Builder $query) use ($sites, $departments): void {
+            $query->whereNotNull('properties->found_department_id');
+
+            if ($sites !== null) {
+                $query->whereIn('properties->found_site_id', $sites);
+            }
+
+            if ($departments !== null) {
+                $query->whereIn('properties->found_department_id', $departments);
+            }
+        });
+    }
+
+    /**
      * Biens actifs du périmètre, sans le scope de l'utilisateur : la liste ne dépend que de l'inventaire.
      *
      * @return Builder<Asset>

@@ -28,7 +28,7 @@ class ExportInventoryReport
     public function pdf(Inventory $inventory, User $user): StreamedResponse
     {
         $this->authorize($inventory, $user);
-        $pdf = $this->render($inventory);
+        $pdf = $this->render($inventory, $user);
 
         return response()->streamDownload(
             function () use ($pdf): void {
@@ -44,7 +44,7 @@ class ExportInventoryReport
         $this->authorize($inventory, $user);
 
         return Excel::download(
-            new InventoryReportExport($inventory, $this->report->counters($inventory), $this->report->all($inventory)),
+            new InventoryReportExport($inventory, $this->report->counters($inventory), $this->report->all($inventory), InventoryReport::perimeterNote($user)),
             $this->fileName($inventory, 'xlsx'),
         );
     }
@@ -70,7 +70,7 @@ class ExportInventoryReport
         }, 'liste-controle-'.$inventory->reference.'.pdf', ['Content-Type' => 'application/pdf']);
     }
 
-    public function render(Inventory $inventory): DomPdf
+    public function render(Inventory $inventory, ?User $user = null): DomPdf
     {
         $inventory->loadMissing(['manager', 'closer', 'participants.user', 'participants.room']);
 
@@ -80,6 +80,7 @@ class ExportInventoryReport
             'counters' => $this->report->counters($inventory),
             'sections' => $this->report->sections($inventory),
             'observations' => $this->report->observations($inventory),
+            'perimeterNote' => $user === null ? null : InventoryReport::perimeterNote($user),
             'churchName' => $this->settings->string(Settings::CHURCH_NAME),
             'churchAcronym' => $this->settings->string(Settings::CHURCH_ACRONYM),
             'editedAt' => now(),

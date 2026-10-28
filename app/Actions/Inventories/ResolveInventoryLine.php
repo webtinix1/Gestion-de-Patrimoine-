@@ -3,12 +3,15 @@
 namespace App\Actions\Inventories;
 
 use App\Enums\InventoryResolution;
+use App\Enums\MovementType;
 use App\Models\Asset;
 use App\Models\Inventory;
 use App\Models\InventoryLine;
+use App\Models\Movement;
 use App\Models\User;
 use App\Services\Inventories\InventoryJournal;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -21,11 +24,15 @@ use Illuminate\Validation\ValidationException;
  *
  *     app(ResolveInventoryLine::class)($line, InventoryResolution::Disposal, $disposal);
  *
- * L'objet de référence doit porter le bien de la ligne (asset_id), sauf pour une fiche créée (le bien
- * lui-même) et « retrouvé » (sans objet). Les droits sur l'opération sont vérifiés par l'appelant.
+ * Objet attendu : transfert → mouvement (hors affectation initiale) du bien, postérieur à la clôture ;
+ * état → la fiche du bien ; fiche créée → bien créé après la clôture, lié à aucune autre ligne ;
+ * sortie → App\Models\Disposal du bien ; retrouvé → aucun. Les droits sont vérifiés par l'appelant.
  */
 class ResolveInventoryLine
 {
+    /** Classe des sorties du patrimoine (lot 10), vérifiée par son nom sans en dépendre ici. */
+    public const string DISPOSAL_CLASS = 'App\Models\Disposal';
+
     public function __invoke(InventoryLine $line, InventoryResolution|string $type, ?Model $reference, ?string $notes = null, ?User $user = null): InventoryLine
     {
         $type = $type instanceof InventoryResolution ? $type : InventoryResolution::tryFrom($type);
@@ -38,6 +45,10 @@ class ResolveInventoryLine
 
         // Transaction imbriquée dans celle de l'appelant : les tentatives sont celles de la plus externe.
         return DB::transaction(function () use ($line, $type, $reference, $notes, $user): InventoryLine {
+            if ($reference instanceof Asset) {
+                Asset::query()->withoutGlobalScopes()->whereKey($reference->getKey())->lockForUpdate()->first();
+            }
+
             $current = InventoryLine::query()->withoutGlobalScopes()->lockForUpdate()->findOrFail($line->getKey());
             $inventory = Inventory::query()->withoutGlobalScopes()->findOrFail($current->inventory_id);
 
@@ -53,7 +64,7 @@ class ResolveInventoryLine
                 throw ValidationException::withMessages(['resolution' => '« '.$type->getLabel().' » ne s\'applique pas à un résultat « '.$current->result->getLabel().' ».']);
             }
 
-            $this->assertReference($current, $type, $reference);
+            $this->assertReference($current, $inventory, $type, $reference);
 
             $notes = trim((string) $notes);
             $current->forceFill([
@@ -95,28 +106,67 @@ class ResolveInventoryLine
         }, attempts: 1);
     }
 
-    private function assertReference(InventoryLine $line, InventoryResolution $type, ?Model $reference): void
+    /**
+     * RG-48 : à chaque régularisation sa classe d'opération et ses conditions.
+     */
+    private function assertReference(InventoryLine $line, Inventory $inventory, InventoryResolution $type, ?Model $reference): void
     {
         if ($type === InventoryResolution::Found) {
             return;
         }
 
+        $fail = fn (string $message) => throw ValidationException::withMessages(['resolution' => $message]);
+
         if ($reference === null || ! $reference->exists) {
-            throw ValidationException::withMessages(['resolution' => 'La régularisation doit être liée à l\'opération enregistrée.']);
+            $fail('La régularisation doit être liée à l\'opération enregistrée.');
         }
 
-        if ($type === InventoryResolution::CreatedAsset) {
-            if (! $reference instanceof Asset) {
-                throw ValidationException::withMessages(['resolution' => 'La fiche créée doit être un bien.']);
-            }
+        $closedAt = $inventory->closed_at;
+        $after = fn (Model $model): bool => $closedAt !== null && $model->getAttribute('created_at') !== null
+            && ! Carbon::parse($model->getAttribute('created_at'))->lt($closedAt);
 
-            return;
-        }
+        switch ($type) {
+            case InventoryResolution::Transfer:
+                if (! $reference instanceof Movement || $reference->type === MovementType::Initial
+                    || $reference->asset_id !== $line->asset_id || ! $after($reference)) {
+                    $fail('Un transfert de régularisation est un mouvement du bien de la ligne, enregistré après la clôture.');
+                }
+                break;
 
-        $assetId = $reference instanceof Asset ? $reference->getKey() : $reference->getAttribute('asset_id');
+            case InventoryResolution::ConditionUpdate:
+                if (! $reference instanceof Asset || $reference->getKey() !== $line->asset_id) {
+                    $fail('La mise à jour d\'état porte sur la fiche du bien de la ligne.');
+                }
+                break;
 
-        if ((int) $assetId !== $line->asset_id) {
-            throw ValidationException::withMessages(['resolution' => 'L\'opération ne porte pas sur le bien de cette ligne.']);
+            case InventoryResolution::CreatedAsset:
+                if (! $reference instanceof Asset || $line->asset_id !== null || ! $after($reference)) {
+                    $fail('La fiche créée doit être un bien nouveau, enregistré après la clôture.');
+                }
+
+                $taken = InventoryLine::query()->withoutGlobalScopes()
+                    ->whereKeyNot($line->getKey())
+                    ->where('resolution', InventoryResolution::CreatedAsset)
+                    ->where('resolution_ref_type', $reference->getMorphClass())
+                    ->where('resolution_ref_id', $reference->getKey())
+                    ->exists();
+
+                if ($taken) {
+                    $fail('Cette fiche est déjà liée à un autre bien trouvé.');
+                }
+                break;
+
+            case InventoryResolution::Disposal:
+                // Contrat avec le lot 10 : seule une sortie (App\Models\Disposal) du bien de la ligne.
+                $disposedAssetId = (int) $reference->getAttribute('asset_id');
+
+                if ($reference::class !== self::DISPOSAL_CLASS || $disposedAssetId !== $line->asset_id) {
+                    $fail('Une sortie pour perte est une sortie du patrimoine du bien de la ligne.');
+                }
+                break;
+
+            default:
+                $fail('Type de régularisation inconnu.');
         }
     }
 }

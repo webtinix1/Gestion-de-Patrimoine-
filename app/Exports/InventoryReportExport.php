@@ -31,6 +31,7 @@ class InventoryReportExport extends DefaultValueBinder implements FromArray, Sho
         public readonly Inventory $inventory,
         public readonly array $counters,
         public readonly Collection $lines,
+        public readonly ?string $perimeterNote = null,
     ) {}
 
     public function bindValue(Cell $cell, mixed $value): bool
@@ -56,8 +57,8 @@ class InventoryReportExport extends DefaultValueBinder implements FromArray, Sho
             ['Attendus', $this->counters['expected'], 'Présents', $this->counters['present'], 'Manquants', $this->counters['missing'],
                 'Écarts', $this->counters['discrepancies'], 'Non enregistrés', $this->counters['unregistered'], 'Hors périmètre', $this->counters['out_of_scope'], 'Justifiés', $this->counters['justified']],
             ['Clôture', $this->inventory->closed_at?->format('d/m/Y H:i') ?? '—', 'Commentaire', $this->inventory->closing_comment ?? ''],
-            [],
-            ['N°', 'Désignation', 'Attendu', 'Département attendu', 'Local attendu', 'État attendu', 'Résultat', 'Département constaté',
+            $this->perimeterNote === null ? [] : [$this->perimeterNote],
+            ['N°', 'Désignation', 'Attendu', 'Site', 'Département attendu', 'Local attendu', 'État attendu', 'Résultat', 'Département constaté',
                 'Local constaté', 'État constaté', 'Observations', 'Pointé par', 'Pointé le', 'Régularisation'],
         ];
 
@@ -66,6 +67,7 @@ class InventoryReportExport extends DefaultValueBinder implements FromArray, Sho
                 $line->asset->number ?? '—',
                 $line->asset?->label() ?? (string) $line->description,
                 $line->expected ? 'Oui' : 'Non',
+                ($line->asset_id ? $line->expectedSite : $line->foundSite)->name ?? '',
                 $line->expectedDepartment->name ?? '',
                 $line->expectedRoom->name ?? '',
                 $line->expectedCondition->label ?? '',

@@ -99,7 +99,7 @@ switch ($mode) {
         usleep(random_int(0, 3000));
 
         try {
-            app(RecordInventoryEntry::class)->mark($inventory, $account, (int) $args[2], $args[4], [], (int) $args[3]);
+            app(RecordInventoryEntry::class)->mark($inventory, $account, (int) $args[2], $args[4], (int) $args[3]);
             echo 'OK '.$args[4].PHP_EOL;
         } catch (InventoryLineConflictException) {
             echo 'CONFLIT'.PHP_EOL;

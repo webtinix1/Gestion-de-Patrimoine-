@@ -49,7 +49,18 @@ Compatibilité vérifiée sur Packagist le 27/10/2026 : Laravel 13 exige PHP ^8.
   - Statut « à valider » posé par « Terminer la saisie » ; la clôture exige l'attestation de la maquette.
   - Fichiers partagés modifiés a minima : `AssetsTable` (une action groupée), `ActivityResource` (domaine « Inventaires », périmètre des inventaires, libellé), `FiscalYearAttentionPoints` (une ligne), `DemoSeeder` (une ligne). `AssetResource`, `ViewAsset` et `PendingModuleCheck` ne sont pas modifiés.
 - **Écarts par rapport aux docs** : colonnes ajoutées (voir `docs/03`), `resolution_ref` polymorphe ; régularisation « retrouvé » ajoutée (QL9-5) ; liens « Maintenance » et « Traiter » de la maquette non faits (QL9-11) ; pas de carte « inventaire en cours » au-dessus de la liste E18 (sous-titre à la place).
-- **Questions ajoutées** : QL9-1 à QL9-11 dans `docs/06`.
+- **Corrections après revue** (verdict « fusionnable après corrections » ; sondes du relecteur reprises en tests, `tests/Feature/Inventaires/RevueCorrectionsTest.php`) :
+  - I-1 : terminer la saisie, déclarer manquants, rouvrir et clôturer exigent un inventaire contenu dans le périmètre de l'utilisateur (`InventoryScope::isContainedIn`) ; une personne seulement désignée sur un inventaire plus large ne valide plus des biens qu'elle ne voit pas.
+  - I-2 : `ResolveInventoryLine` vérifie la classe et les conditions de chaque régularisation : transfert = mouvement (hors affectation initiale) du bien de la ligne, créé après la clôture ; état = la fiche du bien de la ligne ; fiche créée = bien créé après la clôture et lié à aucune autre ligne (contrôle sous verrou du bien) ; sortie = instance de `App\Models\Disposal` (nom vérifié en chaîne, constante `DISPOSAL_CLASS`) portant le bien de la ligne. Le test qui acceptait un mouvement comme sortie le refuse désormais ; **le cas positif de la sortie sera testé à l'intégration du lot 10**.
+  - M-1 : régulariser exige aussi « créer » ou « valider » et un inventaire contenu dans le périmètre (QL9-7 mise à jour) ; le responsable de département ne régularise plus.
+  - M-2 : journal : une entrée portant sur un inventaire n'est visible d'un utilisateur limité que si son périmètre contient l'inventaire, ou si le bien non enregistré tracé (`found_site_id`, `found_department_id` dans les propriétés) est dans son périmètre.
+  - M-3 : `StartInventory` teste le statut avant les droits (« déjà démarré ») ; le bouton intercepte le refus.
+  - M-4 : « Autre affectation » : menus et action limités au périmètre de l'utilisateur plus l'affectation attendue de la ligne (QL9-12).
+  - M-5 : une ligne est visible si l'affectation attendue au démarrage ou l'affectation actuelle du bien est dans le périmètre.
+  - M-6 : PV PDF et Excel portent « Extrait limité au périmètre de … » pour un utilisateur limité ; colonne Site dans l'Excel.
+  - M-7 : la version est obligatoire pour `RecordInventoryEntry::mark()` et les régularisations par transfert et par mise à jour d'état ; le seeder transmet la version réelle.
+  - Suggestions : l'état avant la première saisie est journalisé (« À vérifier ») ; « Déclarer manquants » intercepte les refus. Pas de test de double démarrage en processus parallèles : le verrou de l'inventaire et le contrôle du statut sous ce verrou couvrent le cas, testé en séquence.
+- **Questions ajoutées** : QL9-1 à QL9-12 dans `docs/06` (QL9-12 et précision de QL9-7 après la revue).
 - **À tester à la main** :
   - Douchette USB réelle sur E20 : lecture d'une étiquette (QR ou Code 128 du lot 4), Entrée automatique, focus revenu dans le champ, lectures rapides en série.
   - Deux postes sur le même inventaire (gestionnaire et responsable de département désigné) : scanner les mêmes biens, appuyer sur « Manquant » sur un poste après un « Présent » de l'autre (avertissement, rien d'écrasé), compteurs mis à jour en 15 s.

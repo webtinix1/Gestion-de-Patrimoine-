@@ -18,6 +18,7 @@ use App\Models\Site;
 use App\Models\User;
 use App\Services\Inventories\InventoryReport;
 use Filament\Actions\Action;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -235,22 +236,31 @@ class EnterInventory extends Page
             ->modalHeading('Présent mais affecté ailleurs')
             ->modalDescription('Indiquez où le bien a été trouvé. La fiche n\'est pas modifiée : la régularisation se fera depuis le rapport, après la clôture (RG-48).')
             ->modalSubmitActionLabel('Enregistrer')
-            ->fillForm(fn (array $arguments): array => ['room_id' => $this->roomId])
+            ->fillForm(fn (array $arguments): array => ['room_id' => $this->roomId, 'line_id' => (int) ($arguments['line'] ?? 0)])
             ->schema([
+                Hidden::make('line_id'),
+                // QL9-12 : le périmètre de l'utilisateur, plus l'affectation attendue de la ligne.
                 Select::make('department_id')
                     ->label('Département constaté')
                     ->placeholder('Inchangé')
-                    ->options(fn (): array => Department::query()->withoutGlobalScopes()->where('is_active', true)->orderBy('name')->pluck('name', 'id')->all())
+                    ->options(fn (Get $get): array => Department::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id')->all()
+                        + Department::query()->withoutGlobalScopes()->whereKey($this->expectedOf($get('line_id'))?->expected_department_id)->pluck('name', 'id')->all())
                     ->searchable(),
                 Select::make('room_id')
                     ->label('Local constaté')
                     ->placeholder('Inchangé')
-                    ->options(fn (): array => $this->getRoomOptions())
+                    ->options(fn (Get $get): array => $this->getRoomOptions() + Room::query()->withoutGlobalScopes()
+                        ->whereKey($this->expectedOf($get('line_id'))?->expected_room_id)->pluck('name', 'id')->all())
                     ->searchable(),
             ])
             ->action(function (array $data, array $arguments): void {
-                $this->record((int) ($arguments['line'] ?? 0), 'other_assignment', $data, (int) ($arguments['version'] ?? -1));
+                $this->record((int) ($arguments['line'] ?? 0), 'other_assignment', ['department_id' => $data['department_id'] ?? null, 'room_id' => $data['room_id'] ?? null], (int) ($arguments['version'] ?? -1));
             });
+    }
+
+    private function expectedOf(mixed $lineId): ?InventoryLine
+    {
+        return InventoryLine::query()->where('inventory_id', $this->inventory()->id)->find((int) $lineId);
     }
 
     public function noteAction(): Action
@@ -346,7 +356,7 @@ class EnterInventory extends Page
     private function record(int $lineId, string $intent, array $found, int $version, ?string $notes = null): void
     {
         try {
-            app(RecordInventoryEntry::class)->mark($this->inventory(), $this->user(), $lineId, $intent, $found, $version, $notes);
+            app(RecordInventoryEntry::class)->mark($this->inventory(), $this->user(), $lineId, $intent, $version, $found, $notes);
         } catch (InventoryLineConflictException $exception) {
             Notification::make()->warning()->title('Ligne pointée entre-temps')->body($exception->getMessage())->persistent()->send();
         } catch (ValidationException $exception) {

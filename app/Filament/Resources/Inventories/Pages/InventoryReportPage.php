@@ -198,7 +198,7 @@ class InventoryReportPage extends Page
             ])
             ->action(function (array $data, array $arguments, Action $action): void {
                 $this->run($action, 'Bien transféré, ligne régularisée', fn (InventoryLine $line) => app(RegularizeInventoryLine::class)
-                    ->transfer($line, $this->user(), $data, isset($data['lock_version']) ? (int) $data['lock_version'] : null), $arguments);
+                    ->transfer($line, $this->user(), $data, (int) ($data['lock_version'] ?? -1)), $arguments);
             });
     }
 
@@ -216,7 +216,7 @@ class InventoryReportPage extends Page
             ->schema([Hidden::make('lock_version')])
             ->action(function (array $data, array $arguments, Action $action): void {
                 $this->run($action, 'État de la fiche mis à jour', fn (InventoryLine $line) => app(RegularizeInventoryLine::class)
-                    ->updateCondition($line, $this->user(), isset($data['lock_version']) ? (int) $data['lock_version'] : null), $arguments);
+                    ->updateCondition($line, $this->user(), (int) ($data['lock_version'] ?? -1)), $arguments);
             });
     }
 
@@ -322,8 +322,18 @@ class InventoryReportPage extends Page
             ->visible(fn (): bool => $this->getCounters()['pending'] > 0)
             ->requiresConfirmation()
             ->modalDescription('Chaque bien attendu encore « à vérifier » est enregistré « manquant » à votre nom (tracé bien par bien).')
-            ->action(function (): void {
-                $count = app(DeclareRemainingMissing::class)($this->inventory(), $this->user());
+            ->action(function (Action $action): void {
+                try {
+                    $count = app(DeclareRemainingMissing::class)($this->inventory(), $this->user());
+                } catch (ValidationException|AuthorizationException $exception) {
+                    Notification::make()->danger()->title('Déclaration impossible')
+                        ->body($exception instanceof ValidationException ? (string) collect($exception->errors())->flatten()->first() : $exception->getMessage())
+                        ->send();
+                    $action->halt();
+
+                    return;
+                }
+
                 Notification::make()->success()->title($count.' bien'.($count > 1 ? 's déclarés manquants' : ' déclaré manquant'))->send();
             });
     }
