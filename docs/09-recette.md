@@ -105,6 +105,101 @@ Deux parties : la **recette technique** faite par Claude Code le 28/10/2026 sur 
   - Tests `tests/Feature/Mouvements/TransfertTest.php` (service hors du département et local hors du site refusés, référentiel désactivé refusé), `tests/Feature/Structure/`.
 - **Réserves** : Q14 (liste réelle des sites, départements, services, locaux) à saisir par l'Église ; Q60 (transfert hors périmètre refusé) et Q61 (modification d'affectation depuis la fiche tracée en mouvement) à confirmer.
 
+### Critère 12 · Les transferts sont enregistrés et historisés
+
+- **Statut : Conforme.**
+- **Preuves** :
+  - À l'écran : deux transferts de PAT-001249 (changement de local, puis site et département). La liste « Mouvements » montre, du plus récent au plus ancien : « Transfert multiple » Siège · Informatique · Salle informatique → Paroisse Moungali · Administration ; « Changement de local » ; « Affectation initiale » (RG-22), avec l'auteur. Le journal porte une entrée « Transfert d'un bien » par transfert, avec avant et après. Le changement de site propose la réimpression de l'étiquette (RG-24).
+  - Tests `tests/Feature/Mouvements/` (`TransfertTest`, `EcransMouvementsTest`, `RevueMouvementsTest`, `DemoMouvementsTest`) : un mouvement par bien, lot groupé, mouvement non modifiable ni supprimable, contrôle de version.
+- **Réserves** : Q22 (motifs : texte libre avec suggestions), Q63 et Q64 (transfert groupé) à confirmer. Le journal double chaque transfert d'une entrée « Modification d'une fiche » aux valeurs techniques (défaut D2).
+
+### Critère 13 · Les inventaires peuvent être réalisés et les écarts identifiés
+
+- **Statut : Conforme avec réserve.**
+- **Preuves** :
+  - À l'écran : saisie de INV-2026-005 (en cours) : lecture d'un bien hors liste enregistrée « présent hors périmètre », compteurs mis à jour, focus rendu au champ de lecture. Rapport de INV-2026-004 (clôturé) : 168 attendus, 165 présents, 3 manquants, 1 non enregistré, 2 autres affectations, 2 états différents, chacun avec son action de régularisation (transfert, mise à jour d'état, création de fiche, retrouvé, déclarer perdu) ; PV PDF et export Excel proposés.
+  - Tests `tests/Feature/Inventaires/` (création et démarrage, saisie, clôture et régularisations, écrans et droits, revue) dont `SaisieSimultaneeConcurrenceTest.php` (5 postes lisent en parallèle, 6 postes appuient sur la même ligne : une seule saisie retenue), sur SQLite et MariaDB (résultat de la suite ci-dessous).
+- **Réserves** :
+  - **Tests humains** : douchette réelle sur l'écran de saisie (lectures rapides en série) ; deux postes sur le même inventaire.
+  - Hypothèses QL9-1 à QL9-12 à confirmer (clôture refusée tant qu'il reste des biens à vérifier, règle de saisie simultanée, etc.).
+  - Défaut D5 (mineur, démonstration) : INV-2026-004, clôturé le 30/09/2026, compte PAT-001248 (acquis le 22/10/2026) parmi ses manquants.
+
+### Critère 14 · Les opérations de maintenance, de prêt et de réforme sont suivies
+
+- **Statut : Conforme avec réserve.**
+- **Preuves** (à l'écran, compte `a.okemba`, gestionnaire) :
+  - Prêt PRT-2026-068 de PAT-001249 à « Famille Recette », bien passé « Emprunté » ; retour avec état « État moyen » (départ « Neuf ») : état de la fiche mis à jour, statut précédent restauré, puis redirection automatique vers une nouvelle intervention avec le bien présélectionné (RG-57).
+  - Intervention MNT-2026-053 (réparation, prestataire, devis 25 000 FCFA, « passer En maintenance ») : bien « En maintenance » ; valeur d'origine inchangée (450 000), le coût n'entre pas dans la base amortissable.
+  - Sortie SRT-2026-004 (réforme) de PAT-001250 : panneau des valeurs à la date de sortie (bien sans plan : cumul 0, VNC 80 000, QL10-2), confirmation par saisie du numéro, statut « Réformé », fiche en lecture seule, validation comptable « À valider ».
+  - Journal : « Prêt d'un bien », « Retour d'un bien prêté », « Ouverture d'une intervention », « Sortie du patrimoine », chacune avec l'auteur.
+  - Tests `tests/Feature/Prets/`, `Maintenance/`, `Signalements/`, `Sorties/` (dont le cas A5 de bout en bout, sortie au 26/10/2026 : dotation 493 333, VNC 2 180 000, vérifiée aussi dans la base de démonstration sur PAT-000034), et les tests de concurrence `OperationsConcurrenceTest.php`, `SortieConcurrenceTest.php`.
+- **Réserves** : Q21 (qui valide les sorties), QL10-1 à QL10-8 (sortie d'un bien prêté refusée, sortie antidatée dans un exercice clôturé refusée, aucune annulation), QL8-1 à QL8-11 à confirmer ; Q9.12 / QL10-3 à valider par le comptable.
+
+### Critère 15 · Les rapports peuvent être consultés et exportés
+
+- **Statut : Conforme avec réserve.**
+- **Preuves** :
+  - À l'écran (`e.mbemba`, après ajout du droit « exporter les biens ») : page « Rapports et états », filtres de l'exigence 15.3, aperçu « 65 ligne(s) » limité à son périmètre, boutons « Exporter Excel » et « Exporter PDF ».
+  - Exports réels produits et relus : « Inventaire général » (299 lignes), « Mouvements » (313), « Prêts et emprunts » (12), « Écarts d'inventaire » (12) pour le gestionnaire ; « Tableau des immobilisations » (228) et « Valeurs nettes comptables » (225) pour le comptable : six PDF commençant par `%PDF` et six classeurs Excel relus (en-tête de l'Église, filtres, auteur, lignes, total).
+  - Tests `tests/Feature/Rapports/` : tous les rapports du catalogue produits en aperçu et en PDF sur la démonstration, PDF sans URL distante, Excel sans formule injectable, périmètre, droits.
+- **Réserves** :
+  - QL11-1 : avec la matrice livrée, le responsable de département et la Consultation n'ont **aucun** rapport ; à régler avec l'Église dans la matrice (vérifié possible ici).
+  - Défaut D1 (important) : dans les exports Excel, les montants nuls sont des cellules vides.
+  - En-tête « [Nom de l'Église] ([SIGLE]) » tant que Q15 n'est pas tranchée. PDF d'environ 0,9 Mo même pour 12 lignes (polices DejaVu incluses en entier) : sans gravité.
+
+### Critère 16 · Les informations patrimoniales et les valeurs des immobilisations peuvent être suivies
+
+- **Statut : Conforme.**
+- **Preuves** :
+  - À l'écran, tableau de bord (`admin`) et tableau des immobilisations 2026, sur la même base : VNC 37 874 816 et dotations 2026 18 699 281 FCFA identiques des deux côtés ; valeur d'origine 129 509 000 − cumul 91 634 184 = VNC 37 874 816 ; sommes par site du tableau de bord égales aux totaux (valeur d'acquisition 137 890 500, VNC 37 874 816) ; statuts 268 + 12 + 2 + 9 + 6 + 3 = 300 biens.
+  - Après la création de PAT-001249, l'export « Tableau des immobilisations » donne une VNC totale de 38 295 649 = 37 874 816 + 420 833.
+  - Tests `tests/Feature/TableauDeBord/ChiffresEtPerimetreTest.php` (« affiche sur le tableau de bord les mêmes chiffres que les rapports », une seule source `PatrimonyFigures`), `DemoRapportsTest.php`.
+- **Réserves** : définitions des chiffres QL11-6 à valider par le comptable (valeur d'acquisition hors biens sortis, total des biens tous statuts).
+
+### Critère 17 · L'application calcule automatiquement les amortissements des immobilisations concernées
+
+- **Statut : Conforme avec réserve.**
+- **Preuves** :
+  - `tests/Unit/DepreciationCalculatorTest.php` lit `tests/Fixtures/amortissements.json` (inchangé depuis le kit de démarrage) et reproduit exactement les 8 cas A1 à A8, plus les invariants RG-33 et RG-34 et les cas de bord : 29 tests, 297 assertions, tous passés (`pest tests/Unit`).
+  - De bout en bout dans la base de démonstration : PAT-000125 = A2, PAT-001248 = A3, PAT-000034 = A5 (sortie au 26/10/2026), ligne par ligne (jours, dotation, cumul, VNC).
+  - Plan calculé automatiquement à la création de PAT-001249 (aucune action manuelle) ; aucun plan pour PAT-001250 sous le seuil.
+- **Réserves** : **les 8 cas ne sont pas validés par le comptable** (Q9 « non validés ») ; A7 (dégressif) est marqué « PROVISOIRE » dans le fichier et le dégressif est désactivé par défaut (Q4). Q1 (prorata 30/360), Q5, Q6, Q7, Q9.1 à Q9.12 restent des hypothèses. Le critère ne peut être coché définitivement qu'après la signature du comptable sur les 8 cas.
+
+### Critère 18 · Un plan d'amortissement est généré pour chaque immobilisation amortissable
+
+- **Statut : Conforme.**
+- **Preuves** :
+  - Base de démonstration : 228 plans courants (225 biens amortissables au patrimoine plus 3 biens sortis dont le plan est arrêté) ; le tableau des immobilisations comptait 224 biens amortissables et 73 non amortissables avant la recette.
+  - À l'écran : fiche de PAT-001249 avec l'onglet « Amortissement », les compteurs cumul / VNC / durée restante ; plan de PAT-000125 avec paramètres, tableau par exercice et statut (Clôturé, En cours, Prévisionnel), historique, version validée.
+  - Tests `tests/Feature/Amortissements/PlansTest.php`, `EcransTest.php`, `DemoEtCommandeTest.php` (plans générés à la création et à la modification, versions RG-38, commande `patrimoine:recalculer-plans`).
+- **Réserves** : Q9.5 (bien amortissable sans date de mise en service : pas de plan tant que la date manque, signalé à la clôture).
+
+### Critère 19 · Les amortissements cumulés et la valeur nette comptable sont calculés automatiquement
+
+- **Statut : Conforme avec réserve.**
+- **Preuves** :
+  - Recalcul **indépendant** (script de recette, formule 30/360 de RG-32, arrondi au franc, dernière dotation qui absorbe l'écart, arrêt à la date de sortie) des **228 plans courants** de la base de démonstration : 0 écart sur les jours, dotations, cumuls et VNC.
+  - Contrôles à la main : PAT-000004 (390 000, 3 ans, mise en service 13/06/2024 : 198 jours, 71 500 la première année) ; PAT-001249 (70 jours, 29 167) ; PAT-000125 (A2).
+  - Cumul et VNC affichés sur la fiche, le plan, le tableau des immobilisations et le tableau de bord, concordants (critère 16).
+- **Réserves** : **comparaison avec le calcul du comptable sur 3 biens réels** non faisable ici (test humain de la grille) ; mêmes hypothèses que le critère 17.
+
+### Critère 20 · Les plans d'amortissement peuvent être consultés et exportés
+
+- **Statut : Conforme avec réserve.**
+- **Preuves** :
+  - Plan de PAT-000125 exporté par l'action de l'application : PDF relu (en-tête, paramètres, tableau 2024 à 2027 identique à A2 avec VNC finale « 0 », historique, emplacements de signature, « Page 1 / 1 ») et Excel relu (mêmes lignes).
+  - Test `tests/Feature/Amortissements/EcransTest.php` « exporte le plan en PDF et en Excel » ; `RapportsTest.php` « harmonise le plan d'amortissement avec le gabarit E45 ».
+- **Réserves** : défaut D1 : dans l'Excel du plan, la VNC finale (0) est une cellule vide. **Test humain** : impression du PDF.
+
+### Critère 21 · L'historique des opérations est conservé
+
+- **Statut : Conforme avec réserve.**
+- **Preuves** :
+  - Toutes les opérations de cette recette se retrouvent dans le journal avec l'utilisateur, la date et l'heure, le poste (IP) et l'objet : connexions (`admin`, `e.mbemba`, `a.okemba`), création des deux biens, deux transferts, modification de fiche, création de l'utilisateur et de ses droits, modification de la matrice du rôle, saisie d'inventaire, sortie, prêt, retour, ouverture d'intervention.
+  - Conservation : `config/activitylog.php` garde les entrées 36 500 jours ; aucune purge planifiée (`routes/console.php` ne planifie que les alertes) ; modèle `App\Models\Activity` qui refuse modification et suppression (RG-72) ; aucune action de suppression à l'écran.
+  - Tests `tests/Feature/Acces/JournalTest.php` et les tests de journal de chaque module.
+- **Réserves** : défaut D2 (mineur) : les entrées automatiques « Modification d'une fiche » montrent des noms de colonnes et des valeurs techniques. Le journal est conservé en base : il n'est protégé d'une panne que par la sauvegarde (Q20, option hors V1).
+
 ## Grille de recette avec le client
 
 Les 22 critères de la section 20 du cahier des charges, avec le lot qui les livre et la façon de les vérifier. À cocher avec le client lors de la recette, et à faire signer.
