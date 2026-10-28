@@ -8,6 +8,7 @@ use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithColumnFormatting;
 use Maatwebsite\Excel\Concerns\WithCustomValueBinder;
 use Maatwebsite\Excel\Concerns\WithHeadings;
+use Maatwebsite\Excel\Concerns\WithStrictNullComparison;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Cell\Cell;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
@@ -18,7 +19,7 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  * Export Excel de la liste des biens (E05) : montants en nombres entiers, ligne de total en fin de feuille.
  * Les textes sont écrits comme du texte : une désignation commençant par « = » ne devient jamais une formule.
  */
-class AssetsExport extends DefaultValueBinder implements FromArray, ShouldAutoSize, WithColumnFormatting, WithCustomValueBinder, WithHeadings, WithStyles
+class AssetsExport extends DefaultValueBinder implements FromArray, ShouldAutoSize, WithColumnFormatting, WithCustomValueBinder, WithHeadings, WithStrictNullComparison, WithStyles
 {
     public function __construct(public readonly AssetListData $data) {}
 

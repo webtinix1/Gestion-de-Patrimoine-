@@ -88,7 +88,8 @@ class TransferAssets
                 $from = $this->recorder->assignmentOf($asset);
 
                 // RG-86 : la mise à jour passe par le modèle, qui incrémente la version de la fiche.
-                $asset->update([...$target, 'assigned_since' => $movedOn->toDateString()]);
+                // Le journal du transfert (ci-dessous) remplace l'entrée automatique « Modification d'une fiche ».
+                activity()->withoutLogs(fn () => $asset->update([...$target, 'assigned_since' => $movedOn->toDateString()]));
 
                 $movement = $this->recorder->record($asset, $from, $target, $movedOn, $reason, $notes, $batchUuid);
                 $this->log($asset, $movement, $from, $target);

@@ -8,6 +8,7 @@ use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithCustomValueBinder;
+use Maatwebsite\Excel\Concerns\WithStrictNullComparison;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\WithTitle;
 use PhpOffice\PhpSpreadsheet\Cell\Cell;
@@ -19,7 +20,7 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  * RG-49 : rapport d'inventaire en Excel, une ligne par bien avec l'attendu, le constaté et la
  * régularisation. Textes forcés en texte (aucune formule possible depuis une saisie).
  */
-class InventoryReportExport extends DefaultValueBinder implements FromArray, ShouldAutoSize, WithCustomValueBinder, WithStyles, WithTitle
+class InventoryReportExport extends DefaultValueBinder implements FromArray, ShouldAutoSize, WithCustomValueBinder, WithStrictNullComparison, WithStyles, WithTitle
 {
     public const int HEADER_ROW = 5;
 

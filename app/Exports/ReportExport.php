@@ -7,6 +7,7 @@ use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithColumnFormatting;
 use Maatwebsite\Excel\Concerns\WithCustomValueBinder;
+use Maatwebsite\Excel\Concerns\WithStrictNullComparison;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\WithTitle;
 use PhpOffice\PhpSpreadsheet\Cell\Cell;
@@ -19,7 +20,7 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  * E29 : export Excel d'un rapport. Montants en nombres entiers ; tout texte est écrit comme du texte, jamais comme
  * une formule : une désignation commençant par « = », « + », « - » ou « @ » ne s'exécute pas dans Excel.
  */
-class ReportExport extends DefaultValueBinder implements FromArray, ShouldAutoSize, WithColumnFormatting, WithCustomValueBinder, WithStyles, WithTitle
+class ReportExport extends DefaultValueBinder implements FromArray, ShouldAutoSize, WithColumnFormatting, WithCustomValueBinder, WithStrictNullComparison, WithStyles, WithTitle
 {
     public function __construct(public readonly ReportData $data) {}
 

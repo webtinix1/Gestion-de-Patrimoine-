@@ -64,6 +64,8 @@ class InventoriesDemoSeeder extends Seeder
             'notes' => 'Inventaire annuel du Siège avec les responsables de départements.',
         ], $okemba);
         app(StartInventory::class)($inventory, $okemba);
+        $this->dropLaterAcquisitions($inventory, '2026-09-30');
+        $firstActivity = (int) DB::table('activity_log')->max('id');
 
         $record = app(RecordInventoryEntry::class);
         $lines = $this->pendingLines($inventory);
@@ -107,6 +109,8 @@ class InventoriesDemoSeeder extends Seeder
         app(CloseInventory::class)($inventory, $okemba, 'Inventaire réalisé avec les responsables de départements. Manquants transmis à l\'administration pour décision.', true);
 
         // Régularisations depuis le rapport : un transfert, une mise à jour d'état, un bien retrouvé.
+        $closureActivity = (int) DB::table('activity_log')->max('id');
+        $closureMovement = (int) DB::table('movements')->max('id');
         $regularize = app(RegularizeInventoryLine::class);
         $moved = InventoryLine::query()->withoutGlobalScopes()->findOrFail($elsewhere->first()?->id);
         $asset = Asset::query()->withoutGlobalScopes()->findOrFail($moved->asset_id);
@@ -115,7 +119,7 @@ class InventoriesDemoSeeder extends Seeder
             'department_id' => $other,
             'room_id' => $asset->room_id,
             'holder_id' => $asset->holder_id,
-            'moved_on' => today()->toDateString(),
+            'moved_on' => '2026-10-02',
         ], $asset->lock_version);
         $damagedLine = InventoryLine::query()->withoutGlobalScopes()->findOrFail($damaged->first()?->id);
         $regularize->updateCondition($damagedLine, $okemba, (int) Asset::query()->withoutGlobalScopes()->whereKey($damagedLine->asset_id)->value('lock_version'));
@@ -126,6 +130,22 @@ class InventoriesDemoSeeder extends Seeder
             'started_at' => '2026-09-22 08:30:00', 'submitted_at' => '2026-09-30 16:00:00', 'closed_at' => '2026-09-30 17:00:00',
         ]);
         DB::table('inventory_lines')->where('inventory_id', $inventory->id)->whereNotNull('checked_at')->update(['checked_at' => '2026-09-25 10:00:00']);
+
+        // Les écritures du journal et les régularisations suivent le calendrier : saisies pendant l'inventaire,
+        // clôture le 30/09, régularisations le 03/10 (jamais à la date du chargement de la démonstration).
+        DB::table('activity_log')->where('id', '>', $firstActivity)->where('id', '<=', $closureActivity)->update(['created_at' => '2026-09-30 17:00:00']);
+        DB::table('activity_log')->where('id', '>', $closureActivity)->update(['created_at' => '2026-10-03 09:00:00']);
+        DB::table('movements')->where('id', '>', $closureMovement)->update(['created_at' => '2026-10-03 09:00:00']);
+        DB::table('inventory_lines')->where('inventory_id', $inventory->id)->whereNotNull('resolved_at')->update(['resolved_at' => '2026-10-03 09:00:00']);
+    }
+
+    /**
+     * Un inventaire ne compte que les biens déjà acquis à sa date : on retire de sa liste attendue ceux acquis après.
+     */
+    private function dropLaterAcquisitions(Inventory $inventory, string $date): void
+    {
+        $later = DB::table('assets')->where('acquired_on', '>', $date)->select('id');
+        DB::table('inventory_lines')->where('inventory_id', $inventory->id)->whereIn('asset_id', $later)->delete();
     }
 
     private function currentAnnexeInventory(User $ondongo): void
@@ -147,6 +167,7 @@ class InventoriesDemoSeeder extends Seeder
             'notes' => 'Inventaire de l\'annexe, trois équipes.',
         ], $ondongo);
         app(StartInventory::class)($inventory, $ondongo);
+        $this->dropLaterAcquisitions($inventory, '2026-10-24');
 
         $record = app(RecordInventoryEntry::class);
         $lines = $this->pendingLines($inventory);

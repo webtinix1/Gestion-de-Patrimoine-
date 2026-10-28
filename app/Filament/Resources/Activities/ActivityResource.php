@@ -2,12 +2,23 @@
 
 namespace App\Filament\Resources\Activities;
 
+use App\Enums\AssetStatus;
+use App\Enums\DepreciationMethod;
+use App\Enums\FundingSource;
 use App\Filament\Resources\Activities\Pages\ListActivities;
 use App\Models\Activity;
 use App\Models\Asset;
+use App\Models\AssetCategory;
+use App\Models\AssetCondition;
+use App\Models\Department;
+use App\Models\Holder;
 use App\Models\Inventory;
 use App\Models\Loan;
 use App\Models\Role;
+use App\Models\Room;
+use App\Models\Service;
+use App\Models\Site;
+use App\Models\Supplier;
 use App\Models\User;
 use App\Services\Inventories\InventoryScope;
 use App\Support\OperationLabels;
@@ -18,6 +29,7 @@ use Filament\Infolists\Components\TextEntry;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Filament\Support\Contracts\HasLabel;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
@@ -25,6 +37,7 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\HtmlString;
 use UnitEnum;
 
@@ -241,8 +254,8 @@ class ActivityResource extends Resource
 
         foreach (array_slice($keys, 0, $limit ?? count($keys)) as $key) {
             $lines[] = '<div><span class="text-gray-600">'.e(self::attributeLabel($key)).' :</span> '
-                .(array_key_exists($key, $old) ? '<del class="text-danger-700">'.e(self::stringify($old[$key])).'</del> → ' : '')
-                .'<ins class="text-success-700 no-underline">'.e(self::stringify($new[$key] ?? null)).'</ins></div>';
+                .(array_key_exists($key, $old) ? '<del class="text-danger-700">'.e(self::display($activity, $key, $old[$key])).'</del> → ' : '')
+                .'<ins class="text-success-700 no-underline">'.e(self::display($activity, $key, $new[$key] ?? null)).'</ins></div>';
         }
 
         if ($limit !== null && count($keys) > $limit) {
@@ -250,6 +263,63 @@ class ActivityResource extends Resource
         }
 
         return new HtmlString(implode('', $lines));
+    }
+
+    /**
+     * Modèles liés par une clé étrangère du bien : le journal affiche leur nom, jamais leur identifiant.
+     *
+     * @var array<string, array{class-string<Model>, string}>
+     */
+    private const array RELATIONS = [
+        'site_id' => [Site::class, 'name'],
+        'department_id' => [Department::class, 'name'],
+        'service_id' => [Service::class, 'name'],
+        'room_id' => [Room::class, 'name'],
+        'holder_id' => [Holder::class, 'name'],
+        'asset_category_id' => [AssetCategory::class, 'name'],
+        'asset_condition_id' => [AssetCondition::class, 'label'],
+        'supplier_id' => [Supplier::class, 'name'],
+    ];
+
+    /**
+     * Énumérations d'une fiche de bien, rendues par leur libellé.
+     *
+     * @var array<string, class-string<BackedEnum&HasLabel>>
+     */
+    private const array ASSET_ENUMS = [
+        'status' => AssetStatus::class,
+        'funding_source' => FundingSource::class,
+        'depreciation_method' => DepreciationMethod::class,
+    ];
+
+    /**
+     * Valeur lisible d'une entrée du journal : nom de l'objet lié, libellé d'énumération, date locale en jj/mm/aaaa.
+     */
+    public static function display(Activity $activity, string $key, mixed $value): string
+    {
+        if ((is_int($value) || (is_string($value) && ctype_digit($value))) && isset(self::RELATIONS[$key])) {
+            [$class, $column] = self::RELATIONS[$key];
+            // Le journal garde les noms réels, quel que soit le périmètre de l'utilisateur : pas de scope global.
+            $name = (new $class)->newQuery()->withoutGlobalScopes()->whereKey((int) $value)->value($column);
+
+            return filled($name) ? (string) $name : 'n° '.$value;
+        }
+
+        if (is_string($value) && isset(self::ASSET_ENUMS[$key]) && $activity->subject_type === (new Asset)->getMorphClass()) {
+            $label = self::ASSET_ENUMS[$key]::tryFrom($value)?->getLabel();
+
+            if ($label !== null) {
+                return (string) $label;
+            }
+        }
+
+        if (is_string($value) && preg_match('/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2}))?$/', $value) === 1) {
+            $date = Carbon::parse($value)->timezone((string) config('app.timezone'));
+
+            return $date->format(strlen($value) > 10 && $date->format('H:i') !== '00:00' ? 'd/m/Y H:i' : 'd/m/Y');
+        }
+
+        return self::stringify($value);
     }
 
     private static function attributeLabel(string $key): string
