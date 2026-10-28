@@ -6,9 +6,11 @@ use App\Filament\Resources\Activities\Pages\ListActivities;
 use App\Models\Activity;
 use App\Models\Asset;
 use App\Models\Inventory;
+use App\Models\Loan;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\Inventories\InventoryScope;
+use App\Support\OperationLabels;
 use BackedEnum;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DatePicker;
@@ -58,6 +60,9 @@ class ActivityResource extends Resource
         'roles' => 'Rôles et permissions',
         'biens' => 'Biens',
         'mouvements' => 'Mouvements',
+        'prets' => 'Prêts et emprunts',
+        'maintenance' => 'Maintenance',
+        'signalements' => 'Signalements',
         'documents' => 'Documents',
         'amortissements' => 'Immobilisations et amortissements',
         'etiquettes' => 'Étiquettes',
@@ -86,11 +91,12 @@ class ActivityResource extends Resource
         }
 
         $inventoryType = (new Inventory)->getMorphClass();
-        $types = [(new Asset)->getMorphClass(), $inventoryType];
+        // QL8-1 : un emprunt (sans bien) n'est visible que d'un utilisateur sans périmètre restreint.
+        $types = [(new Asset)->getMorphClass(), (new Loan)->getMorphClass(), $inventoryType];
 
         return $query->where(fn (Builder $query) => $query
             ->where(fn (Builder $query) => $query->whereNull('subject_type')->orWhereNotIn('subject_type', $types))
-            ->orWhereHasMorph('subject', [Asset::class])
+            ->orWhereHasMorph('subject', [Asset::class, Loan::class])
             // Entrée portant sur un inventaire : visible si le périmètre contient l'inventaire, ou si le
             // bien non enregistré qu'elle trace est dans le périmètre.
             ->orWhere(fn (Builder $query) => $query->where('subject_type', $inventoryType)
@@ -213,7 +219,7 @@ class ActivityResource extends Resource
             $subject instanceof User => 'Utilisateur '.$subject->username,
             $subject instanceof Role => 'Rôle '.$subject->name,
             $subject instanceof Inventory => 'Inventaire '.$subject->reference,
-            default => class_basename($subject).' n° '.$subject->getKey(),
+            default => OperationLabels::for($subject),
         };
     }
 

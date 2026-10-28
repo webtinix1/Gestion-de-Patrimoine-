@@ -216,6 +216,36 @@ class Asset extends Model
     }
 
     /**
+     * RG-55 : lignes de prêt du bien.
+     *
+     * @return HasMany<LoanItem, $this>
+     */
+    public function loanItems(): HasMany
+    {
+        return $this->hasMany(LoanItem::class);
+    }
+
+    /**
+     * RG-60 : interventions de maintenance du bien.
+     *
+     * @return HasMany<MaintenanceJob, $this>
+     */
+    public function maintenanceJobs(): HasMany
+    {
+        return $this->hasMany(MaintenanceJob::class);
+    }
+
+    /**
+     * RG-63 : signalements du bien.
+     *
+     * @return HasMany<AssetReport, $this>
+     */
+    public function reports(): HasMany
+    {
+        return $this->hasMany(AssetReport::class);
+    }
+
+    /**
      * RG-14 : un bien a plusieurs documents.
      *
      * @return MorphToMany<Document, $this>

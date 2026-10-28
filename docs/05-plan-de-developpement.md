@@ -72,9 +72,9 @@ Sites, départements (multi-sites), services, locaux, catégories (préfixe, rè
 
 ## Lot 8. Prêts, maintenance et signalements (1,5 j) · E15 à E17, E22 à E25 · RG-55 à RG-64
 
-- [ ] Prêt et emprunt, retour avec comparaison des états, statut restauré.
-- [ ] Intervention : ouverture et clôture avec état et statut, proposition de sortie si irréparable.
-- [ ] Signalement par le responsable, traitement ou rejet par le gestionnaire, statut visible par le responsable.
+- [x] Prêt et emprunt, retour avec comparaison des états, statut restauré. *Fiche de prêt PDF au lot 11.*
+- [x] Intervention : ouverture et clôture avec état et statut, proposition de sortie si irréparable. *Lien vers `/admin/sorties/create` proposé si la page des sorties (lot 10) existe.*
+- [x] Signalement par le responsable, traitement ou rejet par le gestionnaire, statut visible par le responsable.
 
 ## Lot 9. Inventaires (2 j) · E18 à E21 · RG-44 à RG-49
 

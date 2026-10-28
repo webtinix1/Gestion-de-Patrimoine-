@@ -40,6 +40,7 @@ class DemoSeeder extends Seeder
             DisposalsDemoSeeder::class,
             AcquisitionsDemoSeeder::class,
             InventoriesDemoSeeder::class,
+            OperationsDemoSeeder::class,
         ]);
     }
 }

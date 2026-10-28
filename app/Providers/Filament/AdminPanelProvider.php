@@ -7,6 +7,7 @@ use App\Filament\Pages\Auth\EditProfile;
 use App\Filament\Pages\Auth\Login;
 use App\Filament\Theme;
 use App\Http\Controllers\AssetPhotoController;
+use App\Http\Controllers\AssetReportPhotoController;
 use App\Http\Controllers\DocumentFileController;
 use App\Http\Middleware\EnsurePasswordIsChanged;
 use Filament\FontProviders\LocalFontProvider;
@@ -56,6 +57,7 @@ class AdminPanelProvider extends PanelProvider
             ->authenticatedRoutes(function (): void {
                 Route::get('documents/{document}/fichier', DocumentFileController::class)->name('documents.file');
                 Route::get('biens/{asset}/photo', AssetPhotoController::class)->name('assets.photo');
+                Route::get('signalements/{report}/photo', AssetReportPhotoController::class)->name('reports.photo')->whereNumber('report');
             })
             ->darkMode(false)
             ->sidebarCollapsibleOnDesktop()

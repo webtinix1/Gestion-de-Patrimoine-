@@ -33,7 +33,7 @@ it('répartit les biens sur les sites, les catégories et les états, avec les s
     expect($usedSites->count())->toBe(Site::query()->where('is_active', true)->count())
         ->and(Asset::query()->distinct()->count('asset_category_id'))->toBe(10)
         ->and(Asset::query()->distinct()->count('asset_condition_id'))->toBe(6)
-        ->and($statuses)->toEqualCanonicalizing([AssetStatus::InService->value, AssetStatus::InStock->value, AssetStatus::OutOfService->value])
+        ->and($statuses)->toEqualCanonicalizing([AssetStatus::InService->value, AssetStatus::InStock->value, AssetStatus::OutOfService->value, AssetStatus::OnLoan->value, AssetStatus::InMaintenance->value])
         ->and(Asset::query()->where('status', AssetStatus::InService)->count())->toBeGreaterThan(250)
         ->and(Asset::query()->whereNotNull('disposed_at')->count())->toBe(3)
         ->and(Asset::query()->whereNotNull('disposed_at')->pluck('status')->map(fn (AssetStatus $status) => $status->value)->all())
