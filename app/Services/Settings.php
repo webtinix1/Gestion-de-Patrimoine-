@@ -40,6 +40,15 @@ class Settings
     // RG-66 : documents.
     public const string DOCUMENT_MAX_SIZE_KB = 'document_max_size_kb';
 
+    // RG-90 : délais des alertes, paramétrables.
+    public const string ALERT_LOAN_DUE_DAYS = 'alert_loan_due_days';
+
+    public const string ALERT_MAINTENANCE_DAYS = 'alert_maintenance_days';
+
+    public const string ALERT_INVENTORY_DAYS = 'alert_inventory_days';
+
+    public const string ALERT_DEPRECIATION_MONTHS = 'alert_depreciation_months';
+
     public const string FORMAT_GLOBAL = 'global';
 
     public const string FORMAT_YEARLY = 'yearly';
@@ -56,6 +65,10 @@ class Settings
         self::CHURCH_NAME => '[Nom de l\'Église]',
         self::CHURCH_ACRONYM => '[SIGLE]',
         self::DOCUMENT_MAX_SIZE_KB => 20480,
+        self::ALERT_LOAN_DUE_DAYS => 3,
+        self::ALERT_MAINTENANCE_DAYS => 15,
+        self::ALERT_INVENTORY_DAYS => 7,
+        self::ALERT_DEPRECIATION_MONTHS => 3,
         self::DEPRECIATION_PRORATA => self::PRORATA_DAYS_360,
         self::DECLINING_ENABLED => false,
         self::DECLINING_COEFFICIENT_3_4 => '1.5',

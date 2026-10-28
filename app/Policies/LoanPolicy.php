@@ -32,6 +32,12 @@ class LoanPolicy
         return $this->allows($user, PermissionAbility::Update) && $loan->isOngoing();
     }
 
+    /** E45 : imprimer la fiche de prêt. */
+    public function export(User $user, Loan $loan): bool
+    {
+        return $this->allows($user, PermissionAbility::Export);
+    }
+
     public function delete(User $user, Loan $loan): bool
     {
         return false;

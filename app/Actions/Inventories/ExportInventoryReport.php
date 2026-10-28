@@ -62,6 +62,7 @@ class ExportInventoryReport
             'inventory' => $inventory,
             'lines' => $this->report->all($inventory)->where('expected', true)->values(),
             'churchName' => $this->settings->string(Settings::CHURCH_NAME),
+            'churchAcronym' => $this->settings->string(Settings::CHURCH_ACRONYM),
             'editedAt' => now(),
         ])->setPaper('a4', 'portrait')->setOption(['enable_remote' => false, 'enable_php' => false, 'default_font' => 'DejaVu Sans']);
 

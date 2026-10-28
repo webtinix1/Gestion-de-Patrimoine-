@@ -48,6 +48,19 @@ enum InventoryLineResult: string implements HasColor, HasLabel
         return in_array($this, [self::Present, self::OtherAssignment, self::ConditionMismatch, self::OutOfScope, self::Unregistered], true);
     }
 
+    /**
+     * Valeurs des résultats qui sont des écarts (alertes, rapport des écarts).
+     *
+     * @return list<string>
+     */
+    public static function discrepancyValues(): array
+    {
+        return array_values(array_map(
+            fn (self $result): string => $result->value,
+            array_filter(self::cases(), fn (self $result): bool => $result->isDiscrepancy()),
+        ));
+    }
+
     /** Écart à examiner dans le rapport. */
     public function isDiscrepancy(): bool
     {

@@ -91,6 +91,16 @@ class User extends Authenticatable implements FilamentUser, HasName
     }
 
     /**
+     * RG-91 : alertes que cet utilisateur a marquées comme lues.
+     *
+     * @return BelongsToMany<Alert, $this>
+     */
+    public function alertReads(): BelongsToMany
+    {
+        return $this->belongsToMany(Alert::class, 'alert_reads')->withPivot('read_at');
+    }
+
+    /**
      * @return BelongsToMany<Site, $this>
      */
     public function sites(): BelongsToMany
