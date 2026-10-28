@@ -1,17 +1,20 @@
 <?php
 
+use App\Actions\Alerts\RefreshAlerts;
 use App\Actions\Settings\UpdateSettings;
 use App\Filament\Pages\SettingsPage;
 use App\Models\Activity;
 use App\Models\Asset;
 use App\Models\AssetCategory;
 use App\Models\Department;
+use App\Models\Setting;
 use App\Models\User;
 use App\Services\Alerts\AlertGenerator;
 use App\Services\AssetListReport;
 use App\Services\AssetNumberGenerator;
 use App\Services\Settings;
 use App\Services\System\EnvironmentCheck;
+use App\Services\System\ServerStatus;
 use App\Support\DefaultRoles;
 use Filament\Facades\Filament;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -44,14 +47,14 @@ function settingErrors(array $data): array
 it('réserve l\'écran Paramètres à l\'administrateur (policy, URL directe, Livewire)', function () {
     $this->actingAs($this->admin);
     $this->get('/admin/parametres')->assertOk()->assertSee('Numérotation')->assertSee('État du serveur');
-    expect(Gate::allows('viewAny', App\Models\Setting::class))->toBeTrue();
+    expect(Gate::allows('viewAny', Setting::class))->toBeTrue();
 
     foreach ([DefaultRoles::MANAGER, DefaultRoles::ACCOUNTANT, DefaultRoles::DEPARTMENT_HEAD, DefaultRoles::VIEWER] as $role) {
         $user = User::factory()->role($role)->create();
         $this->actingAs($user);
 
-        expect(Gate::allows('viewAny', App\Models\Setting::class))->toBeFalse()
-            ->and(Gate::allows('update', App\Models\Setting::class))->toBeFalse();
+        expect(Gate::allows('viewAny', Setting::class))->toBeFalse()
+            ->and(Gate::allows('update', Setting::class))->toBeFalse();
         $this->get('/admin/parametres')->assertForbidden();
         livewire(SettingsPage::class)->assertForbidden();
         expect(fn () => saveSettings([Settings::CHURCH_NAME => 'Pirate']))->toThrow(AuthorizationException::class);
@@ -65,10 +68,10 @@ it('refuse à un administrateur désactivé ou à un rôle personnalisé muni du
     $custom->givePermissionTo('settings.view', 'settings.update');
     $this->actingAs($custom);
 
-    expect(Gate::allows('viewAny', App\Models\Setting::class))->toBeFalse();
+    expect(Gate::allows('viewAny', Setting::class))->toBeFalse();
 
     $this->actingAs(User::factory()->role(DefaultRoles::ADMIN)->inactive()->create());
-    expect(Gate::allows('update', App\Models\Setting::class))->toBeFalse();
+    expect(Gate::allows('update', Setting::class))->toBeFalse();
 });
 
 it('enregistre l\'identité depuis la page et vide le cache de Settings', function () {
@@ -287,8 +290,8 @@ it('signale un planificateur arrêté', function () {
     $this->actingAs($this->admin);
     app(Settings::class)->recordTechnical(Settings::ALERTS_LAST_RUN_AT, now()->subHours(5)->toIso8601String());
 
-    expect(app(App\Services\System\ServerStatus::class)->scheduler()['status'])->toBe('warn');
+    expect(app(ServerStatus::class)->scheduler()['status'])->toBe('warn');
 
-    app(App\Actions\Alerts\RefreshAlerts::class)();
-    expect(app(App\Services\System\ServerStatus::class)->scheduler()['status'])->toBe('ok');
+    app(RefreshAlerts::class)();
+    expect(app(ServerStatus::class)->scheduler()['status'])->toBe('ok');
 });

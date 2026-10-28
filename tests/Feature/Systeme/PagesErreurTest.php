@@ -64,7 +64,10 @@ it('affiche sur la page 403 le message métier en français, sans lire la base n
         ->assertForbidden()
         ->assertSee('Seul le comptable peut valider cette sortie.');
 
-    expect(DB::getQueryLog())->toBe([]);
+    // Seule exception : ApplySessionLifetime (E41) lit la durée d'inactivité avant le démarrage de la session ; elle retombe sur .env si la base est injoignable.
+    $queries = array_values(array_filter(DB::getQueryLog(), fn (array $log): bool => ! str_contains((string) $log['query'], 'settings')));
+
+    expect($queries)->toBe([]);
 });
 
 it('n\'affiche pas « Invalid signature. » ni un autre message anglais sur la page 403', function () {
