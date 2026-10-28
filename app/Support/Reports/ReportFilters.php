@@ -106,7 +106,12 @@ final readonly class ReportFilters
         }
 
         // Le périmètre de l'utilisateur s'applique : un identifiant hors périmètre est ignoré.
-        return $model::query()->whereKey((int) $value)->exists() ? (int) $value : null;
+        // Les responsables suivent en plus le périmètre (départements de l'utilisateur ou biens visibles).
+        $exists = $model === Holder::class
+            ? Holder::query()->inPerimeter()->whereKey((int) $value)->exists()
+            : $model::query()->whereKey((int) $value)->exists();
+
+        return $exists ? (int) $value : null;
     }
 
     /**

@@ -5,12 +5,18 @@ namespace App\Filament\Pages;
 use App\Actions\Alerts\MarkAlertsRead;
 use App\Enums\AlertType;
 use App\Models\Alert;
+use App\Models\Asset;
+use App\Models\Inventory;
+use App\Models\Loan;
+use App\Models\MaintenanceJob;
 use App\Models\User;
+use App\Services\Alerts\AlertCounter;
 use App\Services\Alerts\AlertPresenter;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Livewire\Attributes\Url;
 use UnitEnum;
 
@@ -58,7 +64,12 @@ class Alerts extends Page
     {
         $user = auth()->user();
 
-        return $user instanceof User ? Alert::query()->active()->visibleTo($user)->unreadBy($user)->count() : 0;
+        if (! $user instanceof User) {
+            return 0;
+        }
+
+        // Mémorisé pour la requête (menu, cloche, titre) ; effacé quand on marque ou recalcule.
+        return app(AlertCounter::class)->unread($user);
     }
 
     public function mount(): void
@@ -99,7 +110,12 @@ class Alerts extends Page
     {
         $user = $this->user();
         $presenter = app(AlertPresenter::class);
-        $alerts = Alert::query()->active()->visibleTo($user)->with('subject')->orderByDesc('raised_at')->orderByDesc('id')->get();
+        $alerts = Alert::query()->active()->visibleTo($user)->with(['subject' => fn (MorphTo $morph) => $morph->morphWith([
+            Loan::class => ['items.asset'],
+            MaintenanceJob::class => ['asset'],
+            Inventory::class => ['manager'],
+            Asset::class => ['category'],
+        ])])->orderByDesc('raised_at')->orderByDesc('id')->get();
         $readIds = $user->alertReads()->pluck('alert_reads.alert_id')->all();
 
         return $alerts

@@ -61,14 +61,14 @@ it('génère l\'aperçu avec les filtres communs de l\'exigence 15.3', function 
         ->assertSee('Inventaire général')
         ->assertSee('Chaise Louange')
         ->assertSee('Groupe électrogène Jeunesse')
-        ->set('filters.department_id', $this->w->louange->id)
+        ->set('filters.department_id', $this->w->louange->id)->call('apply')
         ->assertSee('Chaise Louange')
         ->assertDontSee('Groupe électrogène Jeunesse')
-        ->set('filters.department_id', '')
-        ->set('filters.status', 'out_of_service')
+        ->set('filters.department_id', '')->call('apply')
+        ->set('filters.status', 'out_of_service')->call('apply')
         ->assertSee('Groupe électrogène Jeunesse')
         ->assertDontSee('Chaise Louange')
-        ->set('filters', ['from' => '2099-01-01'])
+        ->set('filters', ['from' => '2099-01-01'])->call('apply')
         ->assertSee('Aucune ligne pour ces filtres');
 });
 
@@ -149,10 +149,12 @@ it('exporte en Excel sans formule injectable : les textes restent du texte', fun
         }
     }
 
-    $amount = $sheet->getCell('L2');
+    $amount = $sheet->getCell('L7');
 
     expect($found)->toBeTrue()
-        ->and($sheet->getCell('A1')->getValue())->toBe('N° patrimonial')
+        ->and($sheet->getCell('A2')->getValue())->toBe('Inventaire général')
+        ->and($sheet->getCell('A1')->getValue())->toContain('Gestion du patrimoine')
+        ->and($sheet->getCell('A6')->getValue())->toBe('N° patrimonial')
         ->and($amount->getDataType())->toBe(DataType::TYPE_NUMERIC);
 
     foreach ($sheet->getRowIterator() as $row) {
@@ -176,7 +178,7 @@ it('limite aux biens du périmètre les exports du gestionnaire à périmètre r
         ->and(collect($excel)->pluck(0)->join(' '))->toContain('Louange')->not->toContain('Jeunesse');
 
     livewire(Reports::class)
-        ->set('filters.department_id', $this->w->jeunesse->id)
+        ->set('filters.department_id', $this->w->jeunesse->id)->call('apply')
         ->assertDontSee('Groupe électrogène Jeunesse')
         ->assertSee('Chaise Louange');
 });

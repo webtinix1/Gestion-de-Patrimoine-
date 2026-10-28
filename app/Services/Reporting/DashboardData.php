@@ -45,30 +45,31 @@ class DashboardData
     {
         $year = $this->reports->currentYear();
         $can = fn (PermissionModule $module): bool => $this->can($user, $module);
-        $totals = $this->figures->activeTotals();
-        $statuses = $this->figures->statusCounts();
+        $assets = $can(PermissionModule::Assets);
+        $totals = $assets ? $this->figures->activeTotals() : null;
+        $statuses = $assets ? $this->figures->statusCounts() : null;
         $depreciation = $can(PermissionModule::Depreciation) ? $this->figures->depreciation($year)['totals'] : null;
 
         return [
             'year' => $year,
             'values' => [
-                'acquisition' => $totals['acquisition'],
+                'acquisition' => $totals['acquisition'] ?? null,
                 'net' => $depreciation['net'] ?? null,
                 'charges' => $depreciation['amount'] ?? null,
             ],
             'counters' => [
-                'total' => array_sum($statuses),
-                'active' => $totals['count'],
-                'new_this_month' => Asset::query()->where('acquired_on', '>=', now()->startOfMonth()->toDateString())->count(),
+                'total' => $statuses === null ? null : array_sum($statuses),
+                'active' => $totals['count'] ?? null,
+                'new_this_month' => $assets ? Asset::query()->whereNull('disposed_at')->where('acquired_on', '>=', now()->startOfMonth()->toDateString())->count() : null,
                 'statuses' => $statuses,
                 'open_jobs' => $can(PermissionModule::Maintenance) ? MaintenanceJob::query()->whereIn('status', [MaintenanceStatus::Planned->value, MaintenanceStatus::Ongoing->value])->count() : null,
                 'overdue_loans' => $can(PermissionModule::Loans) ? $this->overdueLoans() : null,
             ],
-            'departments' => $this->departments(),
-            'sites' => $this->figures->bySite($year),
-            'recent_assets' => Asset::query()->with('category')->orderByDesc('acquired_on')->orderByDesc('id')->limit(4)->get(),
+            'departments' => $assets ? $this->departments() : null,
+            'sites' => $assets ? $this->figures->bySite($year) : null,
+            'recent_assets' => $assets ? Asset::query()->with('category')->orderByDesc('acquired_on')->orderByDesc('id')->limit(4)->get() : null,
             'recent_transfers' => $can(PermissionModule::Movements) ? $this->recentTransfers() : null,
-            'to_handle' => $this->assetsToHandle(),
+            'to_handle' => $assets ? $this->assetsToHandle() : null,
             'last_inventory' => $can(PermissionModule::Inventories) ? $this->lastInventory() : null,
             'unread_alerts' => Alert::query()->active()->visibleTo($user)->unreadBy($user)->count(),
         ];

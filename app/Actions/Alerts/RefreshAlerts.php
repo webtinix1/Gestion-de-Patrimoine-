@@ -2,6 +2,7 @@
 
 namespace App\Actions\Alerts;
 
+use App\Services\Alerts\AlertCounter;
 use App\Services\Alerts\AlertGenerator;
 use Carbon\CarbonImmutable;
 
@@ -18,6 +19,9 @@ class RefreshAlerts
      */
     public function __invoke(?CarbonImmutable $today = null): array
     {
-        return $this->generator->refresh($today);
+        $report = $this->generator->refresh($today);
+        app(AlertCounter::class)->forget();
+
+        return $report;
     }
 }

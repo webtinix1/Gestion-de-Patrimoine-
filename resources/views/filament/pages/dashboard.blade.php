@@ -12,8 +12,9 @@
     $d = $this->getData();
     $money = fn (?int $value): string => Money::format($value);
     $c = $d['counters'];
+    $hasAssets = $d['values']['acquisition'] !== null;
     $s = $c['statuses'];
-    $total = max(1, $c['total']);
+    $total = max(1, (int) $c['total']);
     $pct = fn (int $n): string => rtrim(rtrim(number_format($n * 100 / $total, 1, '.', ''), '0'), '.');
     $card = 'background: #fff; border: 1px solid #D7DBE1; border-radius: 12px; padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; text-decoration: none; color: #2E2E2E';
     $label = 'font-size: 11px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: #686868';
@@ -44,10 +45,12 @@
 
         {{-- Valeurs --}}
         <section aria-label="Valeurs" style="margin-top: -44px; padding: 0 28px; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr))">
+            @if ($hasAssets)
             <div style="background: #262626; color: #fff; padding: 20px 22px; display: flex; flex-direction: column; gap: 6px">
                 <span style="font-size: 11px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: #B9BFC8">Valeur d'acquisition totale</span>
                 <span class="pat-mono" data-figure="acquisition" style="font-size: 20px; font-weight: 600">{{ $money($d['values']['acquisition']) }} <span style="font-size: 13px; color: #B9BFC8">FCFA</span></span>
             </div>
+            @endif
             @if ($d['values']['net'] !== null)
                 <div style="background: #fff; border: 1px solid #D7DBE1; padding: 20px 22px; display: flex; flex-direction: column; gap: 6px">
                     <span style="{{ $label }}">Valeur nette comptable</span>
@@ -63,6 +66,7 @@
 
     {{-- Compteurs --}}
     <section aria-label="Indicateurs du patrimoine" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px">
+        @if ($hasAssets)
         <a @if ($canAssets) href="{{ AssetResource::getUrl('index') }}" @endif style="{{ $card }}">
             <span style="{{ $label }}">Total des biens</span>
             <span data-figure="total" style="font-size: 28px; font-weight: 800">{{ $money($c['total']) }}</span>
@@ -76,29 +80,33 @@
         <div style="{{ $card }}">
             <span style="{{ $label }}">En stock</span>
             <span data-figure="in_stock" style="font-size: 28px; font-weight: 800">{{ $money($s[AssetStatus::InStock->value]) }}</span>
-            <span style="font-size: 12px; color: #686868">Biens non affectés à l'usage</span>
+            <span style="font-size: 12px; color: #686868">Biens en réserve</span>
         </div>
+        @endif
         <a @if ($c['open_jobs'] !== null) href="{{ MaintenanceResource::getUrl('index') }}" @endif style="{{ $card }}">
             <span style="{{ $label }}">En maintenance</span>
-            <span data-figure="in_maintenance" style="font-size: 28px; font-weight: 800">{{ $money($s[AssetStatus::InMaintenance->value]) }}</span>
-            @if ($c['open_jobs'] !== null)
+            <span data-figure="in_maintenance" style="font-size: 28px; font-weight: 800">{{ $hasAssets ? $money($s[AssetStatus::InMaintenance->value]) : $c['open_jobs'] }}</span>
+            @if ($c['open_jobs'] !== null && $hasAssets)
                 <span style="font-size: 12px; color: #8A5A00">{{ $c['open_jobs'] }} interventions ouvertes</span>
             @endif
         </a>
+        @if ($hasAssets)
         <div style="{{ $card }}">
             <span style="{{ $label }}">Hors service</span>
             <span data-figure="out_of_service" style="font-size: 28px; font-weight: 800">{{ $money($s[AssetStatus::OutOfService->value]) }}</span>
             <span style="font-size: 12px; color: #A8261B">À réparer ou à sortir du patrimoine</span>
         </div>
+        @endif
         <a @if ($c['overdue_loans'] !== null) href="{{ LoanResource::getUrl('index') }}" @endif style="{{ $card }}">
             <span style="{{ $label }}">Prêtés</span>
-            <span data-figure="on_loan" style="font-size: 28px; font-weight: 800">{{ $money($s[AssetStatus::OnLoan->value]) }}</span>
-            @if ($c['overdue_loans'] !== null)
+            <span data-figure="on_loan" style="font-size: 28px; font-weight: 800">{{ $hasAssets ? $money($s[AssetStatus::OnLoan->value]) : $c['overdue_loans'] }}</span>
+            @if ($c['overdue_loans'] !== null && $hasAssets)
                 <span style="font-size: 12px; color: #A8261B">{{ $c['overdue_loans'] }} en retard</span>
             @endif
         </a>
     </section>
 
+    @if ($hasAssets)
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 16px">
         {{-- Biens par département --}}
         <x-filament::section heading="Biens par département">
@@ -214,7 +222,10 @@
         @endif
     </div>
 
+    @endif
+
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 16px">
+        @if ($hasAssets)
         <x-filament::section heading="Biens nécessitant une intervention">
             <div style="display: flex; flex-direction: column; gap: 8px; font-size: 14px">
                 @forelse ($d['to_handle'] as $asset)
@@ -227,6 +238,7 @@
                 @endforelse
             </div>
         </x-filament::section>
+        @endif
 
         @if ($d['last_inventory'])
             @php($inventory = $d['last_inventory']['inventory'])

@@ -7,7 +7,6 @@ use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithColumnFormatting;
 use Maatwebsite\Excel\Concerns\WithCustomValueBinder;
-use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\WithTitle;
 use PhpOffice\PhpSpreadsheet\Cell\Cell;
@@ -20,7 +19,7 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  * E29 : export Excel d'un rapport. Montants en nombres entiers ; tout texte est écrit comme du texte, jamais comme
  * une formule : une désignation commençant par « = », « + », « - » ou « @ » ne s'exécute pas dans Excel.
  */
-class ReportExport extends DefaultValueBinder implements FromArray, ShouldAutoSize, WithColumnFormatting, WithCustomValueBinder, WithHeadings, WithStyles, WithTitle
+class ReportExport extends DefaultValueBinder implements FromArray, ShouldAutoSize, WithColumnFormatting, WithCustomValueBinder, WithStyles, WithTitle
 {
     public function __construct(public readonly ReportData $data) {}
 
@@ -40,10 +39,8 @@ class ReportExport extends DefaultValueBinder implements FromArray, ShouldAutoSi
         return mb_substr(preg_replace('/[\\\\\/?*\[\]:]/', ' ', $this->data->title) ?? 'Rapport', 0, 31);
     }
 
-    public function headings(): array
-    {
-        return $this->data->headings;
-    }
+    /** Ligne des intitulés de colonnes (après l'en-tête du rapport). */
+    public const int HEADING_ROW = 6;
 
     public function array(): array
     {
@@ -55,7 +52,19 @@ class ReportExport extends DefaultValueBinder implements FromArray, ShouldAutoSi
             $summary[$last] = $this->data->footerRight;
         }
 
-        return [...$this->data->rows, $summary];
+        // En-tête : Église, rapport, filtres appliqués, édition.
+        $church = $this->data->churchName.($this->data->churchAcronym === '' ? '' : ' ('.$this->data->churchAcronym.')');
+
+        return [
+            [$church.' · Gestion du patrimoine'],
+            [$this->data->title],
+            [$this->data->subtitle()],
+            ['Édité le '.$this->data->editedAt->format('d/m/Y à H:i').' par '.$this->data->editedBy],
+            [null],
+            $this->data->headings,
+            ...$this->data->rows,
+            $summary,
+        ];
     }
 
     public function columnFormats(): array
@@ -73,7 +82,9 @@ class ReportExport extends DefaultValueBinder implements FromArray, ShouldAutoSi
     {
         return [
             1 => ['font' => ['bold' => true]],
-            $this->data->count() + 2 => ['font' => ['bold' => true]],
+            2 => ['font' => ['bold' => true, 'size' => 14]],
+            self::HEADING_ROW => ['font' => ['bold' => true]],
+            self::HEADING_ROW + $this->data->count() + 1 => ['font' => ['bold' => true]],
         ];
     }
 }

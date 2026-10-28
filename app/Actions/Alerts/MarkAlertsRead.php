@@ -4,6 +4,7 @@ namespace App\Actions\Alerts;
 
 use App\Models\Alert;
 use App\Models\User;
+use App\Services\Alerts\AlertCounter;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 
@@ -34,6 +35,8 @@ class MarkAlertsRead
             'user_id' => $user->getKey(),
             'read_at' => $now,
         ])->all());
+
+        app(AlertCounter::class)->forget();
 
         return $alertIds->count();
     }

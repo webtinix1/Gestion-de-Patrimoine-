@@ -20,6 +20,9 @@ use Illuminate\Database\Eloquent\Model;
  */
 class PatrimonyFigures
 {
+    /** @var array<string, array{totals: array{count: int, original: int, amount: int, accumulated: int, net: int, fully: int, ending: int, current: int, none: int}, categories: list<array{name: string, duration: int|null, count: int, original: int, amount: int, accumulated: int, net: int}>, sites: array<int, int>}> */
+    private array $memo = [];
+
     public function __construct(private DepreciationRegister $register) {}
 
     /**
@@ -107,31 +110,25 @@ class PatrimonyFigures
      */
     public function netBookValueBySite(int $year, ?ReportFilters $filters = null): array
     {
-        $query = ($filters ?? new ReportFilters)->applyToAssets($this->register->query($year));
-        $net = [];
-
-        foreach ($query->toBase()->cursor() as $row) {
-            $row = (array) $row;
-
-            if ($row['schedule_id'] === null || $row['accumulated_to_year'] === null) {
-                continue;
-            }
-
-            $site = (int) $row['site_id'];
-            $net[$site] = ($net[$site] ?? 0) + (int) $row['schedule_original_value'] - (int) $row['accumulated_to_year'];
-        }
-
-        return $net;
+        return $this->depreciation($year, $filters)['sites'];
     }
 
     /**
      * Valeurs d'amortissement de l'exercice : mêmes totaux que le tableau des immobilisations (E30).
      *
-     * @return array{totals: array{count: int, original: int, amount: int, accumulated: int, net: int, fully: int, ending: int, current: int, none: int}, categories: list<array{name: string, duration: int|null, count: int, original: int, amount: int, accumulated: int, net: int}>}
+     * @return array{totals: array{count: int, original: int, amount: int, accumulated: int, net: int, fully: int, ending: int, current: int, none: int}, categories: list<array{name: string, duration: int|null, count: int, original: int, amount: int, accumulated: int, net: int}>, sites: array<int, int>}
      */
     public function depreciation(int $year, ?ReportFilters $filters = null): array
     {
-        return $this->register->summary($this->depreciationQuery($year, $filters), $year);
+        // Un seul parcours du registre par affichage : mémorisé pour l'utilisateur connecté (périmètre) et les filtres.
+        $key = auth()->id().'|'.$year.'|'.json_encode($filters);
+
+        return $this->memo[$key] ??= $this->register->summary($this->depreciationQuery($year, $filters), $year);
+    }
+
+    public function forget(): void
+    {
+        $this->memo = [];
     }
 
     /**

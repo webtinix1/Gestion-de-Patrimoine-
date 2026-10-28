@@ -60,6 +60,19 @@ class DepreciationRegister
     }
 
     /**
+     * RG-39, RG-52, cas A5 : un bien sorti au plus tard le 31/12 de l'exercice a une dotation arrêtée à la date de
+     * sortie, mais il n'est plus au patrimoine à la clôture : ni cumul, ni VNC, ni « totalement amorti ».
+     */
+    public static function heldAtYearEnd(mixed $disposedAt, int $year): bool
+    {
+        if ($disposedAt === null || $disposedAt === '') {
+            return true;
+        }
+
+        return substr((string) ($disposedAt instanceof \DateTimeInterface ? $disposedAt->format('Y-m-d') : $disposedAt), 0, 10) > $year.'-12-31';
+    }
+
+    /**
      * @param  Builder<Asset>  $query
      * @return Builder<Asset>
      */
@@ -71,7 +84,8 @@ class DepreciationRegister
 
         return match ($tab) {
             self::TAB_ENDING => $query->whereNotNull('ds.id')->whereExists($lines('='))->whereNotExists($lines('>')),
-            self::TAB_FULLY => $query->whereNotNull('ds.id')->whereExists($lines('<='))->whereNotExists($lines('>')),
+            self::TAB_FULLY => $query->whereNotNull('ds.id')->whereExists($lines('<='))->whereNotExists($lines('>'))
+                ->where(fn (Builder $held) => $held->whereNull('assets.disposed_at')->orWhere('assets.disposed_at', '>', $year.'-12-31')),
             self::TAB_NONE => $query->whereNull('ds.id'),
             default => $query->whereNotNull('ds.id')->whereExists($lines('<='))->whereExists($lines('>')),
         };
@@ -84,12 +98,14 @@ class DepreciationRegister
      * @return array{
      *     totals: array{count: int, original: int, amount: int, accumulated: int, net: int, fully: int, ending: int, current: int, none: int},
      *     categories: list<array{name: string, duration: int|null, count: int, original: int, amount: int, accumulated: int, net: int}>,
+     *     sites: array<int, int>,
      * }
      */
     public function summary(Builder $query, int $year): array
     {
         $totals = ['count' => 0, 'original' => 0, 'amount' => 0, 'accumulated' => 0, 'net' => 0, 'fully' => 0, 'ending' => 0, 'current' => 0, 'none' => 0];
         $categories = [];
+        $sites = [];
         $names = AssetCategory::query()->get()->keyBy('id');
 
         foreach ($query->toBase()->cursor() as $row) {
@@ -110,6 +126,20 @@ class DepreciationRegister
             $original = (int) $row['schedule_original_value'];
             $amount = (int) ($row['year_amount'] ?? 0);
             $lastYear = (int) $row['last_year'];
+
+            if (! self::heldAtYearEnd($row['disposed_at'] ?? null, $year)) {
+                // Sorti dans l'exercice : seule la dotation jusqu'à la sortie compte.
+                $totals['amount'] += $amount;
+                $id = (int) $row['asset_category_id'];
+                $category = $names->get($id);
+                $categories[$id] ??= ['name' => $category->name ?? '—', 'duration' => $category?->default_duration_years, 'count' => 0, 'original' => 0, 'amount' => 0, 'accumulated' => 0, 'net' => 0];
+                $categories[$id]['amount'] += $amount;
+
+                continue;
+            }
+
+            $site = (int) $row['site_id'];
+            $sites[$site] = ($sites[$site] ?? 0) + $original - $accumulated;
 
             $totals['count']++;
             $totals['original'] += $original;
@@ -132,6 +162,6 @@ class DepreciationRegister
 
         usort($categories, fn (array $a, array $b): int => strcmp($a['name'], $b['name']));
 
-        return ['totals' => $totals, 'categories' => $categories];
+        return ['totals' => $totals, 'categories' => $categories, 'sites' => $sites];
     }
 }

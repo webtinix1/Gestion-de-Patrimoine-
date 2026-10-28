@@ -13,6 +13,7 @@ use App\Models\MaintenanceJob;
 use App\Models\Movement;
 use App\Models\User;
 use App\Services\AssetListReport;
+use App\Services\DepreciationRegister;
 use App\Services\FiscalYearCalendar;
 use App\Services\Settings;
 use App\Support\Money;
@@ -403,6 +404,7 @@ class ReportBuilder
             ->values();
 
         $entries = $assets->map(function (Asset $asset) use ($year): array {
+            $held = DepreciationRegister::heldAtYearEnd($asset->disposed_at, $year);
             $original = (int) $asset->getAttribute('schedule_original_value');
             $accumulated = (int) $asset->getAttribute('accumulated_to_year');
 
@@ -413,6 +415,7 @@ class ReportBuilder
                 'accumulated' => $accumulated,
                 'net' => $original - $accumulated,
                 'ends' => (int) $asset->getAttribute('last_year'),
+                'held' => $held,
                 'year' => $year,
             ];
         });
@@ -421,8 +424,9 @@ class ReportBuilder
 
         return match ($key) {
             'depreciation_accumulated' => [
+                // Bien sorti dans l'exercice : exclu des cumuls et de la VNC (RG-52, cas A5).
                 ['N° patrimonial', 'Désignation', 'Catégorie', 'Valeur d\'origine (FCFA)', 'Amortissements cumulés au 31/12/'.$year.' (FCFA)'],
-                $entries->map(fn (array $e): array => [...$identity($e), $e['original'], $e['accumulated']])->all(),
+                $entries->filter(fn (array $e): bool => $e['held'])->map(fn (array $e): array => [...$identity($e), $e['original'], $e['accumulated']])->values()->all(),
                 [3, 4],
                 [],
                 $totals['count'].' immobilisations',
@@ -430,16 +434,17 @@ class ReportBuilder
             ],
             'net_book_value' => [
                 ['N° patrimonial', 'Désignation', 'Catégorie', 'Valeur d\'origine (FCFA)', 'VNC au 31/12/'.$year.' (FCFA)'],
-                $entries->map(fn (array $e): array => [...$identity($e), $e['original'], $e['net']])->all(),
+                $entries->filter(fn (array $e): bool => $e['held'])->map(fn (array $e): array => [...$identity($e), $e['original'], $e['net']])->values()->all(),
                 [3, 4],
                 [],
                 $totals['count'].' immobilisations',
                 'VNC totale '.Money::format($totals['net']).' FCFA',
             ],
-            'fully_depreciated' => $this->fullyDepreciated($entries->filter(fn (array $e): bool => $e['ends'] <= $year)->values()->all(), $identity),
+            'fully_depreciated' => $this->fullyDepreciated($entries->filter(fn (array $e): bool => $e['held'] && $e['ends'] <= $year)->values()->all(), $identity),
             default => [
                 ['N° patrimonial', 'Désignation', 'Catégorie', 'Mise en service', 'Valeur d\'origine (FCFA)', 'Dotation '.$year.' (FCFA)', 'Cumul (FCFA)', 'VNC (FCFA)'],
-                $entries->map(fn (array $e): array => [...$identity($e), $e['asset']->in_service_on?->format('d/m/Y'), $e['original'], $e['amount'], $e['accumulated'], $e['net']])->all(),
+                // Un bien sorti dans l'exercice garde sa dotation jusqu'à la sortie, sans cumul ni VNC.
+                $entries->map(fn (array $e): array => [...$identity($e), $e['asset']->in_service_on?->format('d/m/Y'), $e['original'], $e['amount'], $e['held'] ? $e['accumulated'] : null, $e['held'] ? $e['net'] : null])->all(),
                 [4, 5, 6, 7],
                 [],
                 $totals['count'].' immobilisations amortissables',
@@ -449,7 +454,7 @@ class ReportBuilder
     }
 
     /**
-     * @param  list<array{asset: Asset, original: int, amount: int, accumulated: int, net: int, ends: int, year: int}>  $entries
+     * @param  list<array{asset: Asset, original: int, amount: int, accumulated: int, net: int, ends: int, year: int, held: bool}>  $entries
      * @return array{0: list<string>, 1: list<list<int|string|null>>, 2: list<int>, 3: list<int>, 4: string, 5: string}
      */
     private function fullyDepreciated(array $entries, callable $identity): array

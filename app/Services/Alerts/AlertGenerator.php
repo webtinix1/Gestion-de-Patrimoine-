@@ -50,8 +50,10 @@ class AlertGenerator
                 $alert = $existing->get($fingerprint);
 
                 if ($alert === null) {
-                    Alert::query()->create([...$cause, 'fingerprint' => $fingerprint, 'raised_at' => $now]);
-                    $raised++;
+                    // Insertion tolérante : un lancement manuel pendant le passage planifié ne doit pas échouer.
+                    $inserted = DB::table('alerts')->insertOrIgnore([...$cause, 'fingerprint' => $fingerprint, 'raised_at' => $now, 'created_at' => $now, 'updated_at' => $now]);
+                    $raised += $inserted;
+                    $kept += 1 - $inserted;
 
                     continue;
                 }

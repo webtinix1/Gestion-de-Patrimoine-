@@ -48,8 +48,11 @@ class Reports extends Page
     #[Url(as: 'rapport')]
     public ?string $report = null;
 
-    /** @var array<string, mixed> */
+    /** @var array<string, mixed> saisie en cours */
     public array $filters = [];
+
+    /** @var array<string, mixed> filtres appliqués à l'aperçu et aux exports */
+    public array $applied = [];
 
     public static function canAccess(): bool
     {
@@ -72,6 +75,12 @@ class Reports extends Page
     {
         $this->authorizeReport();
         $this->filters = [];
+        $this->applied = [];
+    }
+
+    public function apply(): void
+    {
+        $this->applied = $this->filters;
     }
 
     public function selectReport(string $key): void
@@ -113,7 +122,7 @@ class Reports extends Page
             return null;
         }
 
-        return app(GenerateReport::class)($this->user(), $definition->key, $this->filters);
+        return app(GenerateReport::class)($this->user(), $definition->key, $this->applied);
     }
 
     /**
@@ -130,7 +139,8 @@ class Reports extends Page
             'department' => $names(Department::class),
             'service' => $names(Service::class),
             'category' => $names(AssetCategory::class),
-            'holder' => $names(Holder::class),
+            // Catégories et exercices sont des référentiels communs ; les responsables suivent le périmètre (RG-81).
+            'holder' => Holder::query()->inPerimeter()->orderBy('name')->pluck('name', 'id')->all(),
             'year' => FiscalYear::query()->orderByDesc('year')->pluck('year', 'year')->map(fn ($year): string => (string) $year)->all(),
             'status' => $this->definition()?->statusOptions() ?? [],
         ];
@@ -144,12 +154,12 @@ class Reports extends Page
                 ->icon('heroicon-o-table-cells')
                 ->color('gray')
                 ->visible(fn (): bool => $this->canExport())
-                ->action(fn (): Response => app(ExportReportToExcel::class)($this->user(), (string) $this->report, $this->filters)),
+                ->action(fn (): Response => app(ExportReportToExcel::class)($this->user(), (string) $this->report, $this->applied)),
             Action::make('exportPdf')
                 ->label('Exporter PDF')
                 ->icon('heroicon-o-document-text')
                 ->visible(fn (): bool => $this->canExport())
-                ->action(fn (): Response => app(ExportReportToPdf::class)($this->user(), (string) $this->report, $this->filters)),
+                ->action(fn (): Response => app(ExportReportToPdf::class)($this->user(), (string) $this->report, $this->applied)),
         ];
     }
 

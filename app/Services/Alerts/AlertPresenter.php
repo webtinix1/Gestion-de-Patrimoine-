@@ -77,7 +77,7 @@ class AlertPresenter
      */
     private function loan(Alert $alert, Loan $loan, User $user): array
     {
-        $items = $loan->items()->with('asset')->get();
+        $items = $loan->items;
         $labels = $items->map(fn (LoanItem $item): string => $item->label())->values();
         $title = ($labels->first() ?? $loan->reference).($labels->count() > 1 ? ' et '.($labels->count() - 1).' autre(s)' : '');
         $due = $loan->due_on->format('d/m/Y');
@@ -137,7 +137,8 @@ class AlertPresenter
             return [$title, $detail, $url];
         }
 
-        $detail = 'Amortissement terminé le '.($alert->event_on?->format('d/m/Y') ?? '—').' (catégorie '.($asset->category->name ?? '—').')';
+        $ends = $alert->event_on;
+        $detail = 'Amortissement '.($ends !== null && $ends->isFuture() ? 'se termine le ' : 'terminé le ').($ends?->format('d/m/Y') ?? '—').' (catégorie '.($asset->category->name ?? '—').')';
 
         return [$title, $detail, $user->can('view', $asset) ? AssetResource::getUrl('depreciation', ['record' => $asset]) : null];
     }

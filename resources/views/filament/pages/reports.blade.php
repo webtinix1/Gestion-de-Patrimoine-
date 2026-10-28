@@ -35,7 +35,7 @@
                         @if ($definition->supports($filter))
                             <div style="display: flex; flex-direction: column; gap: 5px">
                                 <label for="f-{{ $field }}" style="{{ $fieldLabel }}">{{ $text }}</label>
-                                <select id="f-{{ $field }}" wire:model.live="filters.{{ $field }}" style="{{ $select }}">
+                                <select id="f-{{ $field }}" wire:model="filters.{{ $field }}" style="{{ $select }}">
                                     <option value="">{{ $all }}</option>
                                     @foreach ($options[$filter] as $value => $name)
                                         <option value="{{ $value }}">{{ $name }}</option>
@@ -47,13 +47,16 @@
                     @if ($definition->supports('period'))
                         <div style="display: flex; flex-direction: column; gap: 5px">
                             <label for="f-from" style="{{ $fieldLabel }}">Du</label>
-                            <input id="f-from" type="date" wire:model.live="filters.from" style="{{ $select }}">
+                            <input id="f-from" type="date" wire:model="filters.from" style="{{ $select }}">
                         </div>
                         <div style="display: flex; flex-direction: column; gap: 5px">
                             <label for="f-to" style="{{ $fieldLabel }}">Au</label>
-                            <input id="f-to" type="date" wire:model.live="filters.to" style="{{ $select }}">
+                            <input id="f-to" type="date" wire:model="filters.to" style="{{ $select }}">
                         </div>
                     @endif
+                    <div style="display: flex; align-items: end">
+                        <x-filament::button type="button" wire:click="apply">Appliquer</x-filament::button>
+                    </div>
                 </section>
 
                 @if ($data)
