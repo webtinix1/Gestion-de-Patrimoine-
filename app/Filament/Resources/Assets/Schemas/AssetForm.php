@@ -296,7 +296,7 @@ class AssetForm
         $duration = (int) ($get('duration_years') ?: $category->default_duration_years);
 
         return sprintf(
-            'Bien amortissable · méthode linéaire sur %d ans · base %s FCFA · dotation annuelle %s FCFA. Le plan détaillé sera calculé au lot 7.',
+            'Bien amortissable · méthode linéaire sur %d ans · base %s FCFA · dotation annuelle %s FCFA. Le plan détaillé est calculé automatiquement.',
             $duration,
             Money::format($cost - (int) $get('residual_value')),
             Money::format($duration > 0 ? (int) round(($cost - (int) $get('residual_value')) / $duration) : null),
