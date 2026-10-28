@@ -62,7 +62,7 @@ class CreateDisposal extends CreateRecord
 
             if ($asset instanceof Asset) {
                 $prefill['asset_id'] = $asset->getKey();
-                $this->rememberAssetVersion((int) $asset->getKey());
+                $this->assetVersions[(int) $asset->getKey()] = $asset->lock_version;
             }
         }
 
@@ -80,15 +80,6 @@ class CreateDisposal extends CreateRecord
 
         if ($prefill !== []) {
             $this->form->fill([...$this->form->getRawState(), ...$prefill]);
-        }
-    }
-
-    public function rememberAssetVersion(?int $assetId): void
-    {
-        $asset = $assetId === null ? null : DisposalForm::eligibleAssets()->find($assetId);
-
-        if ($asset instanceof Asset) {
-            $this->assetVersions[$assetId] = $asset->lock_version;
         }
     }
 

@@ -78,7 +78,12 @@ class DisposalForm
                         ->all())
                     ->getOptionLabelUsing(fn (mixed $value): ?string => ($asset = self::eligibleAssets()->find($value)) instanceof Asset ? $asset->number.' · '.$asset->label() : null)
                     ->afterStateUpdated(function (mixed $state, CreateDisposal $livewire): void {
-                        $livewire->rememberAssetVersion(is_numeric($state) ? (int) $state : null);
+                        // RG-86 : version lue côté serveur au moment du choix, gardée dans une propriété verrouillée.
+                        $asset = is_numeric($state) ? self::eligibleAssets()->find((int) $state) : null;
+
+                        if ($asset instanceof Asset) {
+                            $livewire->assetVersions[(int) $asset->getKey()] = $asset->lock_version;
+                        }
                     }),
                 Text::make(fn (Get $get): HtmlString => self::assetSummary(self::selectedAsset($get))),
             ]);

@@ -35,7 +35,10 @@ it('répartit les biens sur les sites, les catégories et les états, avec les s
         ->and(Asset::query()->distinct()->count('asset_condition_id'))->toBe(6)
         ->and($statuses)->toEqualCanonicalizing([AssetStatus::InService->value, AssetStatus::InStock->value, AssetStatus::OutOfService->value])
         ->and(Asset::query()->where('status', AssetStatus::InService)->count())->toBeGreaterThan(250)
-        ->and(Asset::query()->whereNotNull('disposed_at')->count())->toBe(3);
+        ->and(Asset::query()->whereNotNull('disposed_at')->count())->toBe(3)
+        ->and(Asset::query()->whereNotNull('disposed_at')->pluck('status')->map(fn (AssetStatus $status) => $status->value)->all())
+        ->toEqualCanonicalizing([AssetStatus::TransferredOut->value, AssetStatus::Retired->value, AssetStatus::Retired->value])
+        ->and(Asset::query()->whereNull('disposed_at')->whereIn('status', [AssetStatus::TransferredOut, AssetStatus::Retired])->count())->toBe(0);
 });
 
 it('place chaque bien dans un local du site indiqué', function () {

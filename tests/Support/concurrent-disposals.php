@@ -15,10 +15,16 @@ use App\Models\Asset;
 use App\Models\AssetCategory;
 use App\Models\AssetCondition;
 use App\Models\Department;
+use App\Models\Document;
+use App\Models\DocumentType;
 use App\Models\FiscalYear;
 use App\Models\Site;
+use App\Services\DisposalReferenceGenerator;
 use Illuminate\Contracts\Console\Kernel;
+use Illuminate\Database\DeadlockException;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 require __DIR__.'/../../vendor/autoload.php';
@@ -69,6 +75,36 @@ switch ($mode) {
         } catch (ValidationException|ConcurrentModificationException) {
             echo 'REFUS'.PHP_EOL;
         }
+        break;
+
+    case 'retry': // interblocage simulé à la 1re tentative, avec un justificatif (disque dans DISK_ROOT)
+        config(['filesystems.disks.local.root' => (string) getenv('DISK_ROOT')]);
+        Storage::forgetDisk('local');
+        $app->bind(DisposalReferenceGenerator::class, fn () => new class extends DisposalReferenceGenerator
+        {
+            public static int $calls = 0;
+
+            public function next(int $year): string
+            {
+                if (++self::$calls === 1) {
+                    throw new DeadlockException('SQLSTATE[40001]: Deadlock found when trying to get lock; try restarting transaction');
+                }
+
+                return parent::next($year);
+            }
+        });
+
+        $asset = Asset::query()->orderBy('id')->firstOrFail();
+        $type = DocumentType::query()->firstOrCreate(['label' => 'Document de réforme']);
+        $tmp = (string) tempnam(sys_get_temp_dir(), 'pv');
+        file_put_contents($tmp, "%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF");
+        $disposal = app(RecordDisposal::class)($asset, ['disposed_on' => '2026-10-26', 'reason' => 'retirement', 'decided_by' => 'Conseil'], $asset->number,
+            files: [new UploadedFile($tmp, 'pv.pdf', 'application/pdf', null, true)], documentType: $type);
+
+        echo 'OK '.$disposal->reference.PHP_EOL;
+        echo 'DOCUMENTS '.Document::query()->count().PHP_EOL;
+        echo 'FILES '.count(Storage::disk('local')->allFiles()).PHP_EOL;
+        echo 'SAME '.(Storage::disk('local')->allFiles() === [Document::query()->value('path')] ? 'yes' : 'no').PHP_EOL;
         break;
 
     case 'report':

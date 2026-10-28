@@ -81,9 +81,10 @@ class Asset extends Model
                 throw new LogicException('Le numéro patrimonial ne peut pas être modifié.');
             }
 
-            // RG-53 : une sortie ne s'annule pas ; la date de sortie et le statut d'un bien sorti ne bougent plus.
-            if ($asset->getOriginal('disposed_at') !== null && $asset->isDirty(['disposed_at', 'status'])) {
-                throw new LogicException('Un bien sorti du patrimoine le reste : sa sortie ne peut pas être annulée.');
+            // RG-52, RG-53 : une fiche sortie est en lecture seule et sa sortie ne s'annule pas, par aucun chemin.
+            if ($asset->getOriginal('disposed_at') !== null
+                && array_diff(array_keys($asset->getDirty()), ['updated_at', 'updated_by', 'lock_version']) !== []) {
+                throw new LogicException('Un bien sorti du patrimoine est en lecture seule : sa fiche ne peut plus être modifiée.');
             }
 
             // RG-86 : toute modification, quelle que soit l'opération, change la version de la fiche.

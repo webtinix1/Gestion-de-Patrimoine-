@@ -119,3 +119,42 @@ it('donne des références distinctes à des sorties simultanées de biens diff�
     expect($results)->toHaveCount(6)
         ->and($references)->toBe(array_map(fn (int $n): string => sprintf('SRT-2026-%03d', $n), range(1, 6)));
 })->with(['sqlite', 'mysql', 'mariadb']);
+
+it('mène à terme une clôture d\'exercice et une sortie simultanées (M-3, RG-36)', function (string $driver) {
+    $this->env = disposalConcurrencyEnv($driver) ?? $this->markTestSkipped("Aucune base {$driver} jetable indiquée (variables CONCURRENCE_DB_*).");
+    (new Process([PHP_BINARY, 'artisan', 'migrate:fresh', '--force', '--no-interaction'], base_path(), $this->env, timeout: 600))->mustRun();
+    $script = fn (string $mode): Process => new Process([PHP_BINARY, base_path('tests/Support/concurrent-close-dispose.php'), $mode], base_path(), $this->env, timeout: 600);
+    $script('setup')->mustRun();
+
+    $results = disposalWaitAll([$script('close'), $script('dispose')]);
+    sort($results);
+
+    expect($results)->toBe(['CLOSE OK', 'DISPOSE OK 2180000'])
+        ->and(disposalWaitAll([$script('report')]))->toBe([
+            'YEARS 2024:closed,2025:closed,2026:open',
+            'LINES 2022:326667:1,2023:600000:1,2024:600000:1,2025:600000:1,2026:493333:0',
+        ]);
+})->with(['sqlite', 'mysql', 'mariadb']);
+
+it('ne laisse aucun fichier orphelin quand la sortie est rejouée après un interblocage', function () {
+    $this->env = disposalConcurrencyEnv('sqlite');
+    prepareDisposalDatabase($this->env, 1);
+    $disk = storage_path('framework/testing/disque-srt-'.getmypid());
+    File::deleteDirectory($disk);
+
+    $retry = new Process([PHP_BINARY, base_path('tests/Support/concurrent-disposals.php'), 'retry'], base_path(), [...$this->env, 'DISK_ROOT' => $disk], timeout: 300);
+
+    expect(disposalWaitAll([$retry]))->toBe(['OK SRT-2026-001', 'DOCUMENTS 1', 'FILES 1', 'SAME yes']);
+
+    File::deleteDirectory($disk);
+});
+
+it('rejoue la clôture d\'exercice désignée comme victime d\'un interblocage (M-3)', function () {
+    $this->env = disposalConcurrencyEnv('sqlite');
+    (new Process([PHP_BINARY, 'artisan', 'migrate:fresh', '--force', '--no-interaction'], base_path(), $this->env, timeout: 600))->mustRun();
+    $script = fn (string $mode): Process => new Process([PHP_BINARY, base_path('tests/Support/concurrent-close-dispose.php'), $mode], base_path(), $this->env, timeout: 600);
+    $script('setup')->mustRun();
+
+    expect(disposalWaitAll([$script('close-deadlock')]))->toBe(['CLOSE OK'])
+        ->and(disposalWaitAll([$script('report')])[0])->toBe('YEARS 2024:closed,2025:closed,2026:open');
+});

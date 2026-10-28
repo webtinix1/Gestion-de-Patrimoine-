@@ -3,6 +3,7 @@
 namespace App\Actions\Disposals;
 
 use App\Actions\Depreciation\SyncDepreciationSchedule;
+use App\Actions\Depreciation\SyncOutcome;
 use App\Actions\Documents\AttachDocuments;
 use App\Enums\AssetStatus;
 use App\Enums\DisposalReason;
@@ -21,9 +22,11 @@ use App\Services\FiscalYearCalendar;
 use App\Support\Money;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Throwable;
@@ -44,10 +47,15 @@ class RecordDisposal
 {
     public const int MAX_PRICE = 999_999_999_999;
 
-    // Contrat avec le lot 9 : régularisation d'une ligne d'inventaire par la sortie.
-    private const string INVENTORY_RESOLVER = 'App\\Actions\\Inventories\\ResolveInventoryLine';
+    private const string PLAN_ANOMALY = 'Ce bien a un plan d\'amortissement engagé (exercice clôturé ou plan validé) alors qu\'il n\'est plus amortissable : '
+        .'le plan ne peut pas être arrêté à la date de sortie et ses valeurs ne peuvent pas être figées. Faites corriger cette anomalie par le comptable avant la sortie.';
 
-    private const string INVENTORY_LINE_MODEL = 'App\\Models\\InventoryLine';
+    // Contrat avec le lot 9 : régularisation d'une ligne d'inventaire par la sortie.
+    protected const string INVENTORY_RESOLVER = 'App\\Actions\\Inventories\\ResolveInventoryLine';
+
+    protected const string INVENTORY_LINE_MODEL = 'App\\Models\\InventoryLine';
+
+    protected const string INVENTORY_RESOLUTION_ENUM = 'App\\Enums\\InventoryResolution';
 
     public function __construct(
         private SyncDepreciationSchedule $sync,
@@ -89,6 +97,10 @@ class RecordDisposal
 
         try {
             return DB::transaction(function () use ($assetId, $values, $confirmation, $expectedVersion, $files, $documentType, $inventoryLineId, &$stored): Disposal {
+                // Tentative rejouée après un interblocage : les fichiers de la tentative annulée n'ont plus de ligne en base.
+                $this->forget($stored);
+                $stored = [];
+
                 /** @var CarbonImmutable $disposedOn */
                 $disposedOn = $values['disposed_on'];
                 /** @var DisposalReason $reason */
@@ -106,6 +118,7 @@ class RecordDisposal
                 }
 
                 $this->assertDisposable($current, $disposedOn, $confirmation, $expectedVersion);
+                $this->assertPlanCanStop($current);
 
                 $documents = collect();
 
@@ -121,12 +134,17 @@ class RecordDisposal
 
                 // RG-39 : plan arrêté à la date de sortie incluse ; les lignes figées ne bougent pas (RG-36).
                 try {
-                    ($this->sync)($current);
+                    $outcome = ($this->sync)($current);
                 } catch (ValidationException $exception) {
                     throw ValidationException::withMessages([
                         'disposed_on' => 'Le plan d\'amortissement de ce bien ne peut pas être arrêté à cette date : '
                             .collect($exception->errors())->flatten()->implode(' '),
                     ]);
+                }
+
+                // Filet de sécurité : un plan engagé non arrêté ne doit jamais laisser figer des valeurs fausses.
+                if ($outcome === SyncOutcome::Blocked) {
+                    throw ValidationException::withMessages(['asset_id' => self::PLAN_ANOMALY]);
                 }
 
                 $schedule = SyncDepreciationSchedule::isEligible($current) ? $this->sync->currentSchedule($current) : null;
@@ -188,10 +206,10 @@ class RecordDisposal
         if (blank($date) || ! (is_string($date) || $date instanceof \DateTimeInterface)) {
             $errors['disposed_on'] = 'La date de sortie est obligatoire.';
         } else {
-            try {
-                $disposedOn = CarbonImmutable::parse($date)->startOfDay();
-            } catch (Throwable) {
-                $errors['disposed_on'] = 'La date de sortie n\'est pas valide.';
+            $disposedOn = $this->date($date);
+
+            if ($disposedOn === null) {
+                $errors['disposed_on'] = 'La date de sortie n\'est pas valide (format attendu AAAA-MM-JJ).';
             }
         }
 
@@ -232,7 +250,7 @@ class RecordDisposal
             }
         }
 
-        if ($errors !== [] || $reason === null || $disposedOn === null || $decidedBy === null) {
+        if ($errors !== [] || $disposedOn === null || $decidedBy === null) {
             throw ValidationException::withMessages($errors);
         }
 
@@ -329,21 +347,65 @@ class RecordDisposal
             ->log('Sortie du patrimoine');
     }
 
+    /**
+     * Contrat avec le lot 9 : ResolveInventoryLine($line, InventoryResolution::Disposal, $disposal), où $line
+     * est le modèle InventoryLine. Sans ces classes (lot 9 absent), le paramètre est ignoré. Une ligne
+     * introuvable ou portant sur un autre bien est ignorée, avec une trace dans le journal technique.
+     */
     private function resolveInventoryLine(?int $inventoryLineId, Disposal $disposal): void
     {
-        $resolver = self::INVENTORY_RESOLVER;
+        $resolver = static::INVENTORY_RESOLVER;
+        $lineModel = static::INVENTORY_LINE_MODEL;
+        $resolution = static::INVENTORY_RESOLUTION_ENUM;
 
-        if ($inventoryLineId === null || ! class_exists($resolver)) {
+        if ($inventoryLineId === null || ! class_exists($resolver) || ! class_exists($lineModel) || ! enum_exists($resolution)) {
             return;
         }
 
-        $lineModel = self::INVENTORY_LINE_MODEL;
-        $line = class_exists($lineModel) ? call_user_func([$lineModel, 'query'])->findOrFail($inventoryLineId) : $inventoryLineId;
+        $line = call_user_func([$lineModel, 'find'], $inventoryLineId);
+
+        if (! $line instanceof Model || (int) $line->getAttribute('asset_id') !== $disposal->asset_id) {
+            Log::warning('Sortie '.$disposal->reference.' : ligne d\'inventaire '.$inventoryLineId.' introuvable ou portant sur un autre bien, régularisation ignorée.');
+
+            return;
+        }
+
         $instance = app()->make($resolver);
 
         if (is_callable($instance)) {
-            $instance($line, 'disposal', $disposal);
+            $instance($line, constant($resolution.'::Disposal'), $disposal);
         }
+    }
+
+    /**
+     * RG-50 : un plan engagé (exercice clôturé ou plan validé) sur un bien qui n'est plus amortissable ne
+     * peut pas être arrêté ; figer cumul 0 et VNC = valeur d'origine serait faux. Sortie refusée.
+     */
+    private function assertPlanCanStop(Asset $asset): void
+    {
+        if (! SyncDepreciationSchedule::isEligible($asset) && $this->sync->currentSchedule($asset)?->isEngaged()) {
+            throw ValidationException::withMessages(['asset_id' => self::PLAN_ANOMALY]);
+        }
+    }
+
+    // Date au format AAAA-MM-JJ seulement : ni « yesterday », ni 30 février.
+    private function date(mixed $value): ?CarbonImmutable
+    {
+        if ($value instanceof \DateTimeInterface) {
+            return CarbonImmutable::instance($value)->startOfDay();
+        }
+
+        if (! is_string($value)) {
+            return null;
+        }
+
+        try {
+            $date = CarbonImmutable::createFromFormat('!Y-m-d', trim($value));
+        } catch (Throwable) {
+            return null;
+        }
+
+        return $date instanceof CarbonImmutable && $date->format('Y-m-d') === trim($value) ? $date : null;
     }
 
     private function text(mixed $value, int $max = 255): ?string
