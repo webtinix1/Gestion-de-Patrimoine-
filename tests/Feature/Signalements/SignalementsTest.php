@@ -383,3 +383,16 @@ it('marque comme traité un signalement pris en charge hors de l\'application (s
 
     expect(app(ProcessAssetReport::class)->markHandled($report)->status)->toBe(ReportStatus::Handled);
 });
+
+it('un signalement lié à une intervention ne se marque pas traité à la main et ne se lie pas deux fois', function () {
+    $report = makeReport(['type' => ReportType::Condition, 'reported_condition_id' => $this->w->aReparer->id]);
+
+    $job = app(OpenMaintenanceJob::class)([
+        'asset_id' => $this->asset->id, 'nature' => MaintenanceNature::Repair, 'reason' => 'Signalement', 'starts_on' => today()->toDateString(),
+        'provider_type' => ProviderType::Internal, 'report_id' => $report->id,
+    ]);
+
+    expect(fn () => app(ProcessAssetReport::class)->markHandled($report))->toThrow(ValidationException::class)
+        ->and(fn () => app(ProcessAssetReport::class)->linkOperation($report->id, $this->asset, $job))->toThrow(ValidationException::class)
+        ->and($report->fresh()->status)->toBe(ReportStatus::InProgress);
+});

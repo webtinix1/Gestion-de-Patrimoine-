@@ -69,6 +69,10 @@ class ProcessAssetReport
                 throw ValidationException::withMessages(['report' => 'Prenez d\'abord ce signalement en charge.']);
             }
 
+            if ($locked->handled_ref_id !== null) {
+                throw ValidationException::withMessages(['report' => 'Ce signalement sera traité à la clôture de l\'intervention liée.']);
+            }
+
             $locked->update(['status' => ReportStatus::Handled, 'handled_at' => now()]);
             $this->log($locked, 'Signalement traité', 'handled');
 
@@ -152,6 +156,10 @@ class ProcessAssetReport
         return $this->within($report, function (AssetReport $locked) use ($operation): AssetReport {
             if ($locked->type === ReportType::Move) {
                 throw ValidationException::withMessages(['report_id' => 'Ce signalement demande un déplacement, pas une intervention.']);
+            }
+
+            if ($locked->handled_ref_id !== null) {
+                throw ValidationException::withMessages(['report_id' => 'Ce signalement est déjà lié à une opération.']);
             }
 
             $locked->handled_ref_type = $operation->getMorphClass();
