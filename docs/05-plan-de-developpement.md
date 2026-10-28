@@ -78,10 +78,10 @@ Sites, départements (multi-sites), services, locaux, catégories (préfixe, rè
 
 ## Lot 9. Inventaires (2 j) · E18 à E21 · RG-44 à RG-49
 
-- [ ] Création par périmètre, liste attendue figée au démarrage.
-- [ ] Saisie à la douchette par plusieurs personnes en même temps ; compteurs à jour.
-- [ ] Tous les résultats de RG-45 et RG-46.
-- [ ] Rapport par type d'écart, régularisations tracées, validation et clôture, PV PDF et export Excel.
+- [x] Création par périmètre, liste attendue figée au démarrage. *Six types de périmètre, filtre croisé par site, périmètre de l'utilisateur respecté (QL9-6) ; un bien entré dans le périmètre après le démarrage n'entre pas dans la liste.*
+- [x] Saisie à la douchette par plusieurs personnes en même temps ; compteurs à jour. *Test en processus parallèles sur SQLite et sur MariaDB ; règle des saisies simultanées en QL9-2. Essai réel avec la douchette et deux postes à faire par un humain.*
+- [x] Tous les résultats de RG-45 et RG-46.
+- [x] Rapport par type d'écart, régularisations tracées, validation et clôture, PV PDF et export Excel. *Sortie pour perte : lien vers la page du lot 10 quand elle existe et action publique `ResolveInventoryLine` (branchement à l'intégration).*
 
 ## Lot 10. Sorties du patrimoine (1 j) · E26, E27, E43 · RG-50 à RG-54, RG-39
 
