@@ -62,6 +62,8 @@ class AdminPanelProvider extends PanelProvider
             })
             // E03 : cloche des alertes dans la barre du haut.
             ->renderHook(PanelsRenderHook::USER_MENU_BEFORE, fn () => view('filament.alerts.bell'))
+            // E44 : fenêtres d'état en français (session expirée, serveur injoignable, erreur).
+            ->renderHook(PanelsRenderHook::BODY_END, fn (): string => view('filament.partials.etats-systeme')->render())
             ->darkMode(false)
             ->sidebarCollapsibleOnDesktop()
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
