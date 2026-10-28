@@ -75,6 +75,8 @@ Noms techniques en anglais, libellés d'interface en français. Toutes les table
 
 **inventory_lines** : `inventory_id`, `asset_id` (null si non enregistré), `expected` (bool), snapshot attendu (`expected_room_id`, `expected_department_id`, `expected_condition_id`), constat (`result` Enum : pending, present, missing, other_assignment, condition_mismatch, justified, out_of_scope, unregistered ; `found_room_id`, `found_department_id`, `found_condition_id`), `description` (pour non enregistré), `notes`, `checked_by`, `checked_at`, `resolution` (null, régularisation ultérieure : transfer, condition_update, disposal, created_asset) et `resolution_ref`.
 
+*(lot 9)* **inventories** : `perimeter_site_id` et `perimeter_department_id` (site et département couverts par le périmètre, null = plusieurs ; filtre RG-81), `started_by`, `submitted_at` et `submitted_by` (fin de la saisie, statut « à valider »), `lock_version` (RG-86), `created_by`, `updated_by`. **inventory_lines** : `expected_site_id` et `expected_status` (snapshot ; « justifié » d'office si prêté ou en maintenance), `found_site_id`, `lock_version` (RG-47 : une saisie n'en écrase pas une autre), `resolution` peut aussi valoir `found` (retrouvé après clôture, QL9-5), `resolution_ref` est polymorphe (`resolution_ref_type`, `resolution_ref_id`), `resolved_by`, `resolved_at`, `resolution_notes`, `created_by`. Index unique (`inventory_id`, `asset_id`).
+
 ### Prêts
 
 **loans** : `reference` (`PRT-2026-064` ou `EMP-2026-004`), `direction` (out, in), `borrower_type` (interne, externe), `borrower_name`, `borrower_contact`, `department_id` (si interne), `out_on`, `due_on`, `returned_on`, `responsible_id`, `notes`, `status` (en cours, rendu).

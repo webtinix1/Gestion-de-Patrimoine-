@@ -5,8 +5,10 @@ namespace App\Filament\Resources\Activities;
 use App\Filament\Resources\Activities\Pages\ListActivities;
 use App\Models\Activity;
 use App\Models\Asset;
+use App\Models\Inventory;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\Inventories\InventoryScope;
 use BackedEnum;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DatePicker;
@@ -59,6 +61,7 @@ class ActivityResource extends Resource
         'documents' => 'Documents',
         'amortissements' => 'Immobilisations et amortissements',
         'etiquettes' => 'Étiquettes',
+        'inventaires' => 'Inventaires',
     ];
 
     public static function canCreate(): bool
@@ -81,11 +84,19 @@ class ActivityResource extends Resource
             return $query;
         }
 
-        $assetType = (new Asset)->getMorphClass();
+        $inventoryType = (new Inventory)->getMorphClass();
+        $types = [(new Asset)->getMorphClass(), $inventoryType];
 
         return $query->where(fn (Builder $query) => $query
-            ->where(fn (Builder $query) => $query->whereNull('subject_type')->orWhere('subject_type', '!=', $assetType))
-            ->orWhereHasMorph('subject', [Asset::class]));
+            ->where(fn (Builder $query) => $query->whereNull('subject_type')->orWhereNotIn('subject_type', $types))
+            ->orWhereHasMorph('subject', [Asset::class])
+            // Entrée portant sur un inventaire : visible si le périmètre contient l'inventaire, ou si le
+            // bien non enregistré qu'elle trace est dans le périmètre.
+            ->orWhere(fn (Builder $query) => $query->where('subject_type', $inventoryType)
+                ->where(fn (Builder $query) => app(InventoryScope::class)->whereFoundWithin(
+                    $query->whereIn('subject_id', app(InventoryScope::class)->containedIn($user)->select('id')),
+                    $user,
+                ))));
     }
 
     public static function table(Table $table): Table
@@ -200,6 +211,7 @@ class ActivityResource extends Resource
         return match (true) {
             $subject instanceof User => 'Utilisateur '.$subject->username,
             $subject instanceof Role => 'Rôle '.$subject->name,
+            $subject instanceof Inventory => 'Inventaire '.$subject->reference,
             default => class_basename($subject).' n° '.$subject->getKey(),
         };
     }
