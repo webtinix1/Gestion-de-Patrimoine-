@@ -85,7 +85,10 @@ it('I-2 : chaque régularisation exige la bonne opération (classe, bien, date p
     $record->addUnregistered($inventory, $this->w->manager, ['description' => 'Objet A', 'site_id' => $this->w->siege->id, 'department_id' => $this->w->louange->id]);
     $record->addUnregistered($inventory, $this->w->manager, ['description' => 'Objet B', 'site_id' => $this->w->siege->id, 'department_id' => $this->w->louange->id]);
     $initial = app(MovementRecorder::class)->record($this->w->bureauMeuble, null, ['site_id' => $this->w->siege->id, 'department_id' => $this->w->louange->id], today());
+    // Horodatages à la seconde : la clôture doit être nettement postérieure aux opérations d'avant.
+    $this->travel(2)->seconds();
     $inventory = closeAll($inventory, $this->w->manager);
+    $this->travel(2)->seconds();
     $resolve = app(ResolveInventoryLine::class);
     $unregistered = InventoryLine::query()->withoutGlobalScopes()->where('inventory_id', $inventory->id)->whereNull('asset_id')->orderBy('id')->get();
 
