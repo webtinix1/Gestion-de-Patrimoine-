@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Filament\Actions\AssetReportActions;
 use App\Models\User;
 use App\Services\Reporting\DashboardData;
 use App\Support\DefaultRoles;
@@ -10,7 +11,7 @@ use Illuminate\Contracts\Support\Htmlable;
 
 /**
  * E02 : tableau de bord. Les chiffres viennent de PatrimonyFigures, comme les rapports, et sont limités au
- * périmètre de l'utilisateur. Le responsable de département arrive sur son espace (E42).
+ * périmètre de l'utilisateur. Le responsable de département y trouve son espace (E42) : même adresse, vue de son périmètre.
  */
 class Dashboard extends BaseDashboard
 {
@@ -26,7 +27,7 @@ class Dashboard extends BaseDashboard
     {
         $user = auth()->user();
 
-        return $user instanceof User && ! self::isDepartmentHead($user);
+        return $user instanceof User;
     }
 
     public static function isDepartmentHead(User $user): bool
@@ -34,13 +35,21 @@ class Dashboard extends BaseDashboard
         return $user->hasRole(DefaultRoles::DEPARTMENT_HEAD);
     }
 
-    public function mount(): void
+    public function getView(): string
+    {
+        return $this->isSpace() ? 'filament.pages.department-space' : 'filament.pages.dashboard';
+    }
+
+    protected function getHeaderActions(): array
+    {
+        return $this->isSpace() ? [AssetReportActions::create()] : [];
+    }
+
+    private function isSpace(): bool
     {
         $user = auth()->user();
 
-        if ($user instanceof User && self::isDepartmentHead($user) && DepartmentSpace::canAccess()) {
-            $this->redirect(DepartmentSpace::getUrl());
-        }
+        return $user instanceof User && self::isDepartmentHead($user) && DepartmentSpace::canAccess();
     }
 
     public function getWidgets(): array
@@ -61,7 +70,7 @@ class Dashboard extends BaseDashboard
         /** @var User $user */
         $user = auth()->user();
 
-        return app(DashboardData::class)->overview($user);
+        return $this->isSpace() ? app(DashboardData::class)->departmentSpace($user) : app(DashboardData::class)->overview($user);
     }
 
     public function getGreeting(): string

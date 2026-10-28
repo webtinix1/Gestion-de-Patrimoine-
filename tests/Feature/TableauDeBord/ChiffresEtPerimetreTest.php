@@ -122,10 +122,17 @@ it('affiche le tableau de bord (E02) au gestionnaire, sans les valeurs comptable
         ->assertDontSee('Dernier inventaire');
 });
 
-it('envoie le responsable de département vers son espace (E42) et ne lui montre que son périmètre', function () {
+it('montre au responsable de département son espace (E42) sur le tableau de bord, limité à son périmètre', function () {
     $this->actingAs($this->w->headLouange);
 
-    livewire(Dashboard::class)->assertRedirect(DepartmentSpace::getUrl());
+    livewire(Dashboard::class)
+        ->assertSee('Biens affectés')
+        ->assertSee('Chaise Louange')
+        ->assertDontSee('Jeunesse')
+        ->assertDontSee('Valeur nette comptable')
+        ->assertActionExists('report');
+
+    $this->get('/admin')->assertOk()->assertSee('Biens affectés');
 
     $data = app(DashboardData::class)->departmentSpace($this->w->headLouange);
 

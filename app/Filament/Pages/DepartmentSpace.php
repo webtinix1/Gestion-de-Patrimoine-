@@ -32,6 +32,14 @@ class DepartmentSpace extends Page
 
     protected string $view = 'filament.pages.department-space';
 
+    public static function shouldRegisterNavigation(): bool
+    {
+        $user = auth()->user();
+
+        // Le responsable de département retrouve son espace sur le tableau de bord.
+        return self::canAccess() && ! ($user instanceof User && Dashboard::isDepartmentHead($user));
+    }
+
     public static function canAccess(): bool
     {
         $user = auth()->user();
