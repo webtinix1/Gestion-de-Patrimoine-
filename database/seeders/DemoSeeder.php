@@ -41,6 +41,7 @@ class DemoSeeder extends Seeder
             AcquisitionsDemoSeeder::class,
             InventoriesDemoSeeder::class,
             OperationsDemoSeeder::class,
+            AlertsDemoSeeder::class,
         ]);
     }
 }

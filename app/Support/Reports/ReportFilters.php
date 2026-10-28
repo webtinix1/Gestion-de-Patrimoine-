@@ -2,6 +2,7 @@
 
 namespace App\Support\Reports;
 
+use App\Models\Asset;
 use App\Models\AssetCategory;
 use App\Models\Department;
 use App\Models\Holder;
@@ -9,6 +10,7 @@ use App\Models\Service;
 use App\Models\Site;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 
 /**
  * Exigence 15.3 : filtres communs des rapports (site, département, service, catégorie, statut, période,
@@ -95,7 +97,7 @@ final readonly class ReportFilters
     }
 
     /**
-     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $model
+     * @param  class-string<Model>  $model
      */
     private static function existing(string $model, mixed $value): ?int
     {
@@ -162,8 +164,8 @@ final readonly class ReportFilters
     /**
      * Filtres portant sur le bien (colonnes de la table assets), sans la période.
      *
-     * @param  Builder<\App\Models\Asset>  $query
-     * @return Builder<\App\Models\Asset>
+     * @param  Builder<Asset>  $query
+     * @return Builder<Asset>
      */
     public function applyToAssets(Builder $query, bool $withPeriod = false, bool $withStatus = true): Builder
     {

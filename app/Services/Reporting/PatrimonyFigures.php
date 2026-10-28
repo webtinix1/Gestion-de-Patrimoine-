@@ -11,6 +11,7 @@ use App\Models\Site;
 use App\Services\DepreciationRegister;
 use App\Support\Reports\ReportFilters;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 
 /**
  * Source unique des chiffres du patrimoine : le tableau de bord (E02, E42) et les rapports (E29) les lisent ici,
@@ -142,7 +143,7 @@ class PatrimonyFigures
     }
 
     /**
-     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $model
+     * @param  class-string<Model>  $model
      * @return list<array{id: int, name: string, count: int, acquisition: int}>
      */
     private function grouped(string $column, string $model, ?ReportFilters $filters, bool $withPeriod, bool $includeNull = false): array

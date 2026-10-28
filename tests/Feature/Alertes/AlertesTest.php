@@ -4,14 +4,16 @@ use App\Actions\Alerts\MarkAlertsRead;
 use App\Actions\Alerts\RefreshAlerts;
 use App\Actions\Loans\RecordLoanReturn;
 use App\Enums\AlertType;
+use App\Enums\InventoryStatus;
 use App\Filament\Pages\Alerts;
 use App\Models\Alert;
 use App\Models\DepreciationSchedule;
 use App\Models\User;
 use App\Services\Settings;
-use App\Support\DefaultRoles;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 
 use function Pest\Livewire\livewire;
 
@@ -86,7 +88,7 @@ it('lève l\'alerte quand sa cause disparaît (RG-91) et la recrée si la cause 
     $alert->forceFill(['resolved_at' => null])->save();
     Alert::query()->whereKey($alert->id)->update(['resolved_at' => now()]);
     $this->overdue->forceFill([])->saveQuietly();
-    \Illuminate\Support\Facades\DB::table('loans')->where('id', $this->overdue->id)->update(['status' => 'ongoing', 'returned_on' => null]);
+    DB::table('loans')->where('id', $this->overdue->id)->update(['status' => 'ongoing', 'returned_on' => null]);
     app(RefreshAlerts::class)();
 
     expect($alert->fresh()->resolved_at)->toBeNull()
@@ -115,7 +117,7 @@ it('marque comme lu pour l\'utilisateur seul (RG-91)', function () {
     $this->actingAs($this->w->admin);
 
     expect(Alert::query()->active()->visibleTo($this->w->admin)->unreadBy($this->w->admin)->count())->toBe($total)
-        ->and(fn () => app(MarkAlertsRead::class)($this->w->manager))->toThrow(\Illuminate\Auth\Access\AuthorizationException::class);
+        ->and(fn () => app(MarkAlertsRead::class)($this->w->manager))->toThrow(AuthorizationException::class);
 });
 
 it('affiche l\'écran E03, filtre par type et marque tout comme lu', function () {
@@ -188,14 +190,14 @@ it('ne montre pas les alertes d\'un module que le rôle ne peut pas consulter', 
 
 it('masque les écarts d\'inventaire quand il n\'en reste aucun dans le périmètre', function () {
     $inventory = plannedInventory($this->w, 30, 'INV-2026-020');
-    $inventory->forceFill(['status' => App\Enums\InventoryStatus::Closed, 'closed_at' => now()])->save();
-    \Illuminate\Support\Facades\DB::table('inventory_lines')->insert([
+    $inventory->forceFill(['status' => InventoryStatus::Closed, 'closed_at' => now()])->save();
+    DB::table('inventory_lines')->insert([
         'inventory_id' => $inventory->id, 'asset_id' => $this->w->groupe->id, 'expected' => true, 'result' => 'missing',
         'created_at' => now(), 'updated_at' => now(),
     ]);
 
     foreach ([$this->w->headLouange, $this->w->headJeunesse] as $head) {
-        \Illuminate\Support\Facades\DB::table('inventory_participants')->insert(['inventory_id' => $inventory->id, 'user_id' => $head->id, 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('inventory_participants')->insert(['inventory_id' => $inventory->id, 'user_id' => $head->id, 'created_at' => now(), 'updated_at' => now()]);
     }
 
     app(RefreshAlerts::class)();

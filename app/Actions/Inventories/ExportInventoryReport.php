@@ -7,7 +7,7 @@ use App\Models\Inventory;
 use App\Models\User;
 use App\Services\Inventories\InventoryReport;
 use App\Services\Settings;
-use Barryvdh\DomPDF\Facade\Pdf;
+use App\Support\Pdf\PdfFactory;
 use Barryvdh\DomPDF\PDF as DomPdf;
 use Illuminate\Auth\Access\AuthorizationException;
 use Maatwebsite\Excel\Facades\Excel;
@@ -58,13 +58,13 @@ class ExportInventoryReport
             throw new AuthorizationException('Vous n\'êtes pas désigné pour cet inventaire.');
         }
 
-        $pdf = Pdf::loadView('pdf.inventory-checklist', [
+        $pdf = PdfFactory::view('pdf.inventory-checklist', [
             'inventory' => $inventory,
             'lines' => $this->report->all($inventory)->where('expected', true)->values(),
             'churchName' => $this->settings->string(Settings::CHURCH_NAME),
             'churchAcronym' => $this->settings->string(Settings::CHURCH_ACRONYM),
             'editedAt' => now(),
-        ])->setPaper('a4', 'portrait')->setOption(['enable_remote' => false, 'enable_php' => false, 'default_font' => 'DejaVu Sans']);
+        ]);
 
         return response()->streamDownload(function () use ($pdf): void {
             echo $pdf->output();
@@ -76,7 +76,7 @@ class ExportInventoryReport
         $inventory->loadMissing(['manager', 'closer', 'participants.user', 'participants.room']);
 
         // Hors ligne : aucune ressource distante, police DejaVu Sans incluse dans dompdf.
-        return Pdf::loadView('pdf.inventory-report', [
+        return PdfFactory::view('pdf.inventory-report', [
             'inventory' => $inventory,
             'counters' => $this->report->counters($inventory),
             'sections' => $this->report->sections($inventory),
@@ -85,13 +85,7 @@ class ExportInventoryReport
             'churchName' => $this->settings->string(Settings::CHURCH_NAME),
             'churchAcronym' => $this->settings->string(Settings::CHURCH_ACRONYM),
             'editedAt' => now(),
-        ])
-            ->setPaper('a4', 'portrait')
-            ->setOption([
-                'enable_remote' => false,
-                'enable_php' => false,
-                'default_font' => 'DejaVu Sans',
-            ]);
+        ]);
     }
 
     private function authorize(Inventory $inventory, User $user): void

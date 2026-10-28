@@ -9,6 +9,7 @@ use App\Services\Reporting\PatrimonyFigures;
 use App\Services\Reporting\ReportBuilder;
 use App\Support\Money;
 use App\Support\Reports\ReportCatalog;
+use App\Support\Reports\ReportData;
 use App\Support\Reports\ReportFilters;
 
 use function Pest\Livewire\livewire;
@@ -21,7 +22,7 @@ beforeEach(function () {
     openJob($this->w->groupe, 20);
 });
 
-function buildReport(string $key, ?User $user = null, array $filters = []): App\Support\Reports\ReportData
+function buildReport(string $key, ?User $user = null, array $filters = []): ReportData
 {
     return app(ReportBuilder::class)->build(ReportCatalog::find($key), ReportFilters::fromArray($filters), $user);
 }

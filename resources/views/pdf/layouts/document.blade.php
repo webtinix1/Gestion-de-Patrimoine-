@@ -10,7 +10,7 @@
     <meta charset="utf-8">
     <title>@yield('doc-title', 'Document')</title>
     <style>
-        @page { margin: {{ $compact ? '28px 28px 52px 28px' : '36px 36px 56px 36px' }}; }
+        @page { margin: 36px 32px 56px 32px; }
         body { font-family: 'DejaVu Sans', sans-serif; font-size: {{ $compact ? '8' : '9' }}px; color: #2E2E2E; }
         h1.doc-title { font-size: {{ $compact ? '15' : '19' }}px; font-weight: bold; text-transform: uppercase; margin: 12px 0 8px 0; line-height: 1.1; }
         h2 { font-size: 9px; margin: 14px 0 6px 0; text-transform: uppercase; letter-spacing: 1px; }
@@ -38,8 +38,6 @@
         .signatures .box { height: 56px; border-bottom: 1px solid #2E2E2E; margin-top: 6px; }
         #footer { position: fixed; left: 0; right: 0; bottom: -34px; border-top: 1px solid #D7DBE1; padding-top: 5px; font-size: 7.5px; text-transform: uppercase; letter-spacing: 0.5px; color: #686868; }
         #footer table td { border: none; padding: 0; }
-        .page-number:before { content: counter(page); }
-        .page-count:before { content: counter(pages); }
         @yield('styles')
     </style>
 </head>
@@ -48,7 +46,6 @@
         <table>
             <tr>
                 <td>{{ $churchName }} · @yield('footer-label', 'Gestion du patrimoine')</td>
-                <td style="text-align: right">Page <span class="page-number"></span> / <span class="page-count"></span></td>
             </tr>
         </table>
     </div>
