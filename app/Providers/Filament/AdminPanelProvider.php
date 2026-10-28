@@ -18,6 +18,7 @@ use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
+use Filament\View\PanelsRenderHook;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
@@ -59,6 +60,8 @@ class AdminPanelProvider extends PanelProvider
                 Route::get('biens/{asset}/photo', AssetPhotoController::class)->name('assets.photo');
                 Route::get('signalements/{report}/photo', AssetReportPhotoController::class)->name('reports.photo')->whereNumber('report');
             })
+            // E44 : fenêtres d'état en français (session expirée, serveur injoignable, erreur).
+            ->renderHook(PanelsRenderHook::BODY_END, fn (): string => view('filament.partials.etats-systeme')->render())
             ->darkMode(false)
             ->sidebarCollapsibleOnDesktop()
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')

@@ -1,0 +1,83 @@
+/* États système (docs/04, E44) : pages d'erreur et fenêtres du panneau. Aucune ressource externe. */
+
+.etat-page {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+    box-sizing: border-box;
+    background: #F4F6F8;
+    color: #2E2E2E;
+    font-family: 'Archivo', system-ui, sans-serif;
+}
+
+.etat-carte {
+    background: #fff;
+    border: 1px solid #D7DBE1;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 460px;
+    padding: 28px 24px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    text-align: center;
+}
+
+.etat-code {
+    font-family: 'Martian Mono', ui-monospace, monospace;
+    font-size: 40px;
+    font-weight: 600;
+    line-height: 1;
+    color: #0B5D6B;
+}
+
+.etat-code.danger { color: #A8261B; }
+.etat-code.warning { color: #8A5A00; }
+
+.etat-titre { margin: 0; font-size: 18px; font-weight: 800; }
+.etat-texte { margin: 0; font-size: 14px; line-height: 1.5; color: #686868; }
+.etat-texte strong { color: #2E2E2E; }
+.etat-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 6px; }
+.etat-nom { font-size: 11px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: #686868; }
+
+.etat-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 0 16px;
+    border-radius: 6px;
+    border: 1px solid #8F959F;
+    background: #fff;
+    color: #2E2E2E;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    box-sizing: border-box;
+    cursor: pointer;
+}
+
+.etat-btn.primaire { background: #0B5D6B; border-color: #0B5D6B; color: #fff; }
+.etat-btn:hover { filter: brightness(.95); }
+.etat-btn:focus-visible { outline: 2px solid #0B5D6B; outline-offset: 2px; }
+
+/* Fenêtres affichées par-dessus le panneau (session expirée, serveur injoignable, erreur). */
+dialog.etat-fenetre {
+    border: 1px solid #D7DBE1;
+    border-radius: 12px;
+    padding: 0;
+    width: calc(100% - 32px);
+    max-width: 420px;
+    color: #2E2E2E;
+    font-family: 'Archivo', system-ui, sans-serif;
+}
+
+dialog.etat-fenetre::backdrop { background: rgba(38, 38, 38, .55); }
+dialog.etat-fenetre .etat-carte { border: 0; max-width: none; }
+dialog.etat-fenetre .etat-suivi { min-height: 18px; margin: 0; font-size: 13px; color: #686868; }
