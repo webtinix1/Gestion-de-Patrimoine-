@@ -58,6 +58,7 @@ class ActivityResource extends Resource
         'mouvements' => 'Mouvements',
         'documents' => 'Documents',
         'amortissements' => 'Immobilisations et amortissements',
+        'etiquettes' => 'Étiquettes',
     ];
 
     public static function canCreate(): bool

@@ -4,9 +4,11 @@ namespace App\Filament\Resources\Assets\Tables;
 
 use App\Enums\AssetStatus;
 use App\Filament\Actions\TransferAction;
+use App\Filament\Support\LabelActions;
 use App\Models\Asset;
 use App\Models\AssetCondition;
 use App\Support\Money;
+use Filament\Actions\BulkActionGroup;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DatePicker;
@@ -108,6 +110,7 @@ class AssetsTable
             ])
             ->toolbarActions([
                 TransferAction::bulk(),
+                BulkActionGroup::make([LabelActions::bulk()]),
             ]);
     }
 }

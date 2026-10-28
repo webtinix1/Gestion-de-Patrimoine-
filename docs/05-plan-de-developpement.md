@@ -42,9 +42,9 @@ Sites, départements (multi-sites), services, locaux, catégories (préfixe, rè
 
 ## Lot 4. Étiquettes (1 j) · E09, E10 · RG-95 à RG-97
 
-- [ ] Modèles paramétrables avec aperçu.
-- [ ] PDF planche A4 3 × 8 et rouleau 50 × 25 mm à l'échelle exacte, QR code ou Code 128.
-- [ ] Case de départ sur planche entamée ; impression unitaire, en lot, réimpression.
+- [x] Modèles paramétrables avec aperçu.
+- [x] PDF planche A4 3 × 8 et rouleau 50 × 25 mm à l'échelle exacte, QR code ou Code 128.
+- [x] Case de départ sur planche entamée ; impression unitaire, en lot, réimpression.
 - [ ] Test humain : impression réelle sur l'imprimante du client, lecture du QR par la douchette.
 
 ## Lot 5. Acquisitions (1 j) · E11, E12 · RG-15, RG-16

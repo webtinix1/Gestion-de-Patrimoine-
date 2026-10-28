@@ -177,6 +177,13 @@ return [
         'holder_id' => 'responsable',
         'moved_on' => 'date',
         'reason' => 'motif',
+        'asset_numbers' => 'biens',
+        'template' => 'modèle',
+        'support' => 'support',
+        'cells' => 'cases',
+        'copies' => 'copies par bien',
+        'label_count' => 'étiquettes',
+        'reprinted_numbers' => 'biens réimprimés',
     ],
 
 ];

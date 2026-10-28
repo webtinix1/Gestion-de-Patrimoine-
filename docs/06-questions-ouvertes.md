@@ -55,3 +55,11 @@ Questions à faire trancher par l'Église avant ou pendant le développement. Po
 | Q62 | Réimpression des étiquettes après un transfert (RG-24) : le lien vers la page des étiquettes porte les identifiants des biens (`/admin/etiquettes?biens=12,15`). Le modèle d'étiquette fait-il toujours figurer le site et le département ? *(ajoutée au lot 6)* | Lot 4 | Réimpression proposée dès que le site ou le département change |
 | Q63 | Transfert groupé : faut-il écarter automatiquement un bien déjà à la destination plutôt que de refuser tout le lot ? *(ajoutée au lot 6)* | Lot 6 | Tout le lot est refusé, avec la liste des biens concernés |
 | Q64 | Transfert groupé : faut-il une option « inchangé » par élément (garder le local ou le responsable actuel de chaque bien) ? *(ajoutée au lot 6)* | Lot 6 | Non : un élément laissé vide est vidé pour tous les biens |
+
+## Ajoutées au lot 4 (étiquettes)
+
+| N° | Question | Lot concerné | Hypothèse retenue |
+|---|---|---|---|
+| QL4-1 | Logo de l'Église sur l'étiquette : `label_templates.show_logo` existe (docs/03) mais aucun logo n'est paramétré tant que l'écran E41 n'existe pas. Faut-il l'imprimer, et en quelle taille ? | Lot 4 (puis E41) | Pas de logo imprimé ; la colonne est conservée et absente du formulaire |
+| QL4-2 | Planche réelle du client : marges et décalage d'impression. La grille 3 × 8 de 70 × 37 mm fait 296 mm de haut, elle est centrée sur l'A4 (0,5 mm en haut et en bas, 0 mm sur les côtés). Une planche du commerce ou une imprimante qui décale de quelques millimètres demandera-t-elle un réglage de décalage (X, Y) ? | Lot 4 | Aucun décalage ; à valider sur l'imprimante réelle (test humain du lot 4) |
+| QL4-3 | Un bien sorti du patrimoine peut-il être étiqueté ou réimprimé (par exemple pour un bien vendu ou donné) ? | Lot 4 | Non : les biens sortis ne sont pas proposés à l'impression |
