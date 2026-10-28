@@ -6,7 +6,7 @@ use App\Exports\DepreciationScheduleExport;
 use App\Models\Asset;
 use App\Services\DepreciationPlanReport;
 use App\Services\Settings;
-use Barryvdh\DomPDF\Facade\Pdf;
+use App\Support\Pdf\PdfFactory;
 use Barryvdh\DomPDF\PDF as DomPdf;
 use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -43,19 +43,13 @@ class ExportDepreciationSchedule
     public function render(Asset $asset): DomPdf
     {
         // Hors ligne : aucune ressource distante, police DejaVu Sans incluse dans dompdf.
-        return Pdf::loadView('pdf.depreciation-schedule', [
+        return PdfFactory::view('pdf.depreciation-schedule', [
             'asset' => $asset,
             'report' => $this->report->build($asset),
             'churchName' => $this->settings->string(Settings::CHURCH_NAME),
             'churchAcronym' => $this->settings->string(Settings::CHURCH_ACRONYM),
             'editedAt' => now(),
-        ])
-            ->setPaper('a4', 'portrait')
-            ->setOption([
-                'enable_remote' => false,
-                'enable_php' => false,
-                'default_font' => 'DejaVu Sans',
-            ]);
+        ]);
     }
 
     private function fileName(Asset $asset, string $extension): string

@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Services\Alerts\AlertCounter;
+use App\Services\Reporting\PatrimonyFigures;
 use App\Services\Settings;
 use Filament\Forms\Components\DatePicker;
 use Filament\Schemas\Schema;
@@ -14,6 +16,8 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->scoped(Settings::class);
+        $this->app->scoped(AlertCounter::class);
+        $this->app->scoped(PatrimonyFigures::class);
     }
 
     public function boot(): void

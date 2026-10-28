@@ -123,7 +123,7 @@ Rôles et permissions : tables `spatie/laravel-permission`.
 
 Journal : table `activity_log` de `spatie/laravel-activitylog`, avec `properties` (old, attributes) et l'IP dans `properties.ip`.
 
-Alertes : table `notifications` de Laravel (canal base de données uniquement) + calcul planifié (`schedule:run` toutes les heures) pour les échéances.
+Alertes *(lot 11)* : table **alerts** (`type`, `fingerprint` unique = type + objet, `subject_type` / `subject_id` = prêt, intervention, bien ou inventaire concerné, `event_on`, `raised_at`, `resolved_at`) et table **alert_reads** (`alert_id`, `user_id`, `read_at`, unique : marquage lu par utilisateur). L'alerte ne copie aucune donnée de l'objet : le périmètre et les droits de l'utilisateur s'appliquent à l'objet à la lecture (RG-81). Calcul planifié toutes les heures (`patrimoine:calculer-alertes`, `schedule:run`). La table `notifications` de Laravel n'est pas utilisée (voir QL11-2).
 
 ## Données de démonstration (seeders)
 

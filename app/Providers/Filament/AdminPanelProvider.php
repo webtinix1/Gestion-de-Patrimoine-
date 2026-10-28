@@ -5,6 +5,7 @@ namespace App\Providers\Filament;
 use App\Filament\AvatarProviders\InitialsAvatarProvider;
 use App\Filament\Pages\Auth\EditProfile;
 use App\Filament\Pages\Auth\Login;
+use App\Filament\Pages\Dashboard;
 use App\Filament\Theme;
 use App\Http\Controllers\AssetPhotoController;
 use App\Http\Controllers\AssetReportPhotoController;
@@ -15,9 +16,9 @@ use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
-use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
+use Filament\View\PanelsRenderHook;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
@@ -59,6 +60,8 @@ class AdminPanelProvider extends PanelProvider
                 Route::get('biens/{asset}/photo', AssetPhotoController::class)->name('assets.photo');
                 Route::get('signalements/{report}/photo', AssetReportPhotoController::class)->name('reports.photo')->whereNumber('report');
             })
+            // E03 : cloche des alertes dans la barre du haut.
+            ->renderHook(PanelsRenderHook::USER_MENU_BEFORE, fn () => view('filament.alerts.bell'))
             ->darkMode(false)
             ->sidebarCollapsibleOnDesktop()
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')

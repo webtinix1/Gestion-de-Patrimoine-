@@ -1,47 +1,32 @@
 @php
     $place = fn ($department, $room): string => trim(($department?->name ?? '—').($room ? ' · '.$room->name : ''));
 @endphp
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="utf-8">
-    <title>Procès-verbal d'inventaire {{ $inventory->reference }}</title>
-    <style>
-        @page { margin: 32px 32px 40px 32px; }
-        body { font-family: 'DejaVu Sans', sans-serif; font-size: 9px; color: #1f2933; }
-        h1 { font-size: 15px; margin: 0 0 2px 0; color: #0B5D6B; }
-        h2 { font-size: 10px; margin: 14px 0 6px 0; text-transform: uppercase; letter-spacing: 1px; }
-        .church { font-size: 10px; font-weight: bold; margin: 0; }
-        .meta { margin: 4px 0 10px 0; color: #52606d; }
-        table { width: 100%; border-collapse: collapse; }
-        th { background: #0B5D6B; color: #ffffff; text-align: left; padding: 4px; font-size: 8px; }
-        td { padding: 4px; border-bottom: 1px solid #d9dee3; vertical-align: top; }
-        .counters td { border: 1px solid #d9dee3; text-align: center; padding: 6px 2px; }
+@extends('pdf.layouts.document')
+@section('doc-title')Procès-verbal d'inventaire · {{ $inventory->reference }}@endsection
+@section('footer-label')PV {{ $inventory->reference }}@endsection
+@section('meta'){{ $inventory->reference }}<br>Édité le {{ $editedAt->format('d/m/Y à H:i') }}@endsection
+@section('styles')
+        .counters td { border: 1px solid #D7DBE1; text-align: center; padding: 6px 2px; font-size: 7.5px; }
         .counters strong { display: block; font-size: 13px; }
-        .muted { color: #52606d; }
-        .signature { margin-top: 28px; page-break-inside: avoid; }
-        .signature td { border: none; width: 33%; padding-top: 8px; vertical-align: top; }
-        .signature .box { height: 60px; border-bottom: 1px solid #1f2933; margin-top: 6px; }
-    </style>
-</head>
-<body>
-    <p class="church">{{ $churchName }} ({{ $churchAcronym }})</p>
-    <h1>Procès-verbal d'inventaire · {{ $inventory->reference }}</h1>
-    <p class="meta">
-        {{ $inventory->scopeLabel() }} · du {{ $inventory->periodLabel() }} · responsable {{ $inventory->manager->fullName() }}<br>
-        Statut : {{ $inventory->status->getLabel() }}
-        @if ($inventory->closed_at)
-            · clôturé le {{ $inventory->closed_at->format('d/m/Y à H:i') }} par {{ $inventory->closer?->fullName() ?? '—' }}
+@endsection
+@section('content')
+    <div class="band">{{ $inventory->scopeLabel() }} · du {{ $inventory->periodLabel() }}</div>
+
+    <table class="kv">
+        <tr>
+            <td><span>Responsable</span>{{ $inventory->manager->fullName() }}</td>
+            <td><span>Statut</span>{{ $inventory->status->getLabel() }}@if ($inventory->closed_at) · clôturé le {{ $inventory->closed_at->format('d/m/Y à H:i') }} par {{ $inventory->closer?->fullName() ?? '—' }}@endif</td>
+            <td><span>Biens attendus</span>{{ $counters['expected'] }}</td>
+        </tr>
+        @if ($inventory->participants->isNotEmpty())
+            <tr>
+                <td colspan="3"><span>Participants</span>{{ $inventory->participants->map(fn ($p) => $p->user->fullName().($p->room ? ' ('.$p->room->name.')' : ''))->join(', ') }}</td>
+            </tr>
         @endif
-        · Édité le {{ $editedAt->format('d/m/Y à H:i') }}
-    </p>
+    </table>
 
     @if ($perimeterNote ?? null)
-        <p class="meta" style="font-weight:bold;color:#8A5A00">{{ $perimeterNote }}. Les biens hors de ce périmètre n'y figurent pas.</p>
-    @endif
-
-    @if ($inventory->participants->isNotEmpty())
-        <p class="meta">Participants : {{ $inventory->participants->map(fn ($p) => $p->user->fullName().($p->room ? ' ('.$p->room->name.')' : ''))->join(', ') }}</p>
+        <p style="font-weight:bold;color:#8A5A00">{{ $perimeterNote }}. Les biens hors de ce périmètre n'y figurent pas.</p>
     @endif
 
     <table class="counters">
@@ -61,7 +46,7 @@
     @foreach ($sections as $key => $section)
         @if ($section['lines']->isNotEmpty())
             <h2>{{ $section['label'] }} ({{ $section['lines']->count() }})</h2>
-            <table>
+            <table class="grid">
                 <thead>
                     <tr>
                         <th>N°</th>
@@ -75,7 +60,7 @@
                 <tbody>
                     @foreach ($section['lines'] as $line)
                         <tr>
-                            <td>{{ $line->asset->number ?? '—' }}</td>
+                            <td class="code">{{ $line->asset->number ?? '—' }}</td>
                             <td>{{ $line->asset?->label() ?? $line->description }}</td>
                             <td>
                                 @if ($line->asset_id)
@@ -106,7 +91,7 @@
 
     @if ($observations->isNotEmpty())
         <h2>Observations</h2>
-        <table>
+        <table class="grid">
             @foreach ($observations as $line)
                 <tr>
                     <td style="width: 25%">{{ $line->checker?->fullName() ?? '—' }}{{ $line->asset ? ' · '.$line->asset->number : '' }}</td>
@@ -121,12 +106,9 @@
         <p>{{ $inventory->closing_comment }}</p>
     @endif
 
-    <table class="signature">
-        <tr>
-            <td>Le responsable de l'inventaire<br><span class="muted">{{ $inventory->manager->fullName() }}</span><div class="box"></div></td>
-            <td>Le gestionnaire du patrimoine<div class="box"></div></td>
-            <td>Le représentant de l'administration<div class="box"></div></td>
-        </tr>
-    </table>
-</body>
-</html>
+    @include('pdf.partials.signatures', ['signatures' => [
+        ['Le responsable de l\'inventaire', $inventory->manager->fullName()],
+        'Le gestionnaire du patrimoine',
+        'Le représentant de l\'administration',
+    ]])
+@endsection

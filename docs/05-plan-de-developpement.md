@@ -91,11 +91,11 @@ Sites, départements (multi-sites), services, locaux, catégories (préfixe, rè
 
 ## Lot 11. Tableau de bord, alertes, rapports, espace responsable (2 j) · E02, E03, E29, E42, E45 · RG-90, RG-91
 
-- [ ] Tableau de bord conforme à la maquette, chiffres cohérents avec les rapports.
-- [ ] Alertes calculées toutes les heures, marquage comme lu.
-- [ ] Tous les rapports de E29, avec les filtres de l'exigence 15.3, en PDF et Excel, limités au périmètre de l'utilisateur.
-- [ ] Gabarits PDF de E45 (plan d'amortissement, PV d'inventaire, fiche de prêt).
-- [ ] Espace du responsable de département.
+- [x] Tableau de bord conforme à la maquette, chiffres cohérents avec les rapports. *Une seule source de calcul (`PatrimonyFigures`) ; blocs masqués selon les droits.*
+- [x] Alertes calculées toutes les heures, marquage comme lu. *Idempotentes, limitées au périmètre et aux droits (QL11-2, QL11-3).*
+- [x] Tous les rapports de E29, avec les filtres de l'exigence 15.3, en PDF et Excel, limités au périmètre de l'utilisateur. *16 rapports ; droit « exporter » du module concerné (QL11-1).*
+- [x] Gabarits PDF de E45 (plan d'amortissement, PV d'inventaire, fiche de prêt). *Gabarit commun `pdf/layouts/document` ; liste des biens, liste de contrôle et rapports en héritent.*
+- [x] Espace du responsable de département.
 
 ## Lot 12. États système, installation et livrables (1,5 j) · E44
 

@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\RecordsAuthors;
 use Database\Factories\HolderFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -50,6 +51,31 @@ class Holder extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * RG-81 : un utilisateur au périmètre limité ne voit que les responsables de ses départements ou qui portent
+     * un bien de son périmètre (le scope du bien s'applique).
+     *
+     * @param  Builder<Holder>  $query
+     */
+    public function scopeInPerimeter(Builder $query): void
+    {
+        $user = auth()->user();
+
+        if (! $user instanceof User || ($user->perimeterSiteIds() === null && $user->perimeterDepartmentIds() === null)) {
+            return;
+        }
+
+        $departments = $user->perimeterDepartmentIds();
+
+        $query->where(function (Builder $any) use ($departments): void {
+            if ($departments !== null) {
+                $any->whereIn('holders.department_id', $departments);
+            }
+
+            $any->orWhereIn('holders.id', Asset::query()->whereNotNull('holder_id')->select('holder_id'));
+        });
     }
 
     /**

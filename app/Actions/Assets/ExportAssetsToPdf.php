@@ -5,7 +5,7 @@ namespace App\Actions\Assets;
 use App\Models\Asset;
 use App\Services\AssetListReport;
 use App\Support\AssetListData;
-use Barryvdh\DomPDF\Facade\Pdf;
+use App\Support\Pdf\PdfFactory;
 use Barryvdh\DomPDF\PDF as DomPdf;
 use Illuminate\Database\Eloquent\Builder;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -38,12 +38,6 @@ class ExportAssetsToPdf
     public function render(AssetListData $data): DomPdf
     {
         // Hors ligne : aucune ressource distante, police DejaVu Sans incluse dans dompdf.
-        return Pdf::loadView('pdf.assets-list', ['data' => $data])
-            ->setPaper('a4', 'landscape')
-            ->setOption([
-                'enable_remote' => false,
-                'enable_php' => false,
-                'default_font' => 'DejaVu Sans',
-            ]);
+        return PdfFactory::view('pdf.assets-list', ['data' => $data], landscape: true);
     }
 }
