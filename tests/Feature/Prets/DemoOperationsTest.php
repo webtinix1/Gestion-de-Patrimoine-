@@ -56,7 +56,11 @@ it('charge les prêts, interventions et signalements de la maquette, de façon i
         ->and(AssetReport::query()->where('status', ReportStatus::Rejected)->count())->toBe(1);
 
     // Les biens imposés par les autres démonstrations ne bougent pas.
-    expect(Asset::query()->where('number', 'PAT-000034')->sole()->status)->toBe(AssetStatus::InService);
+    // PAT-000034 est sorti par la démonstration du lot 10 (cas A5) : aucun prêt, intervention ni signalement.
+    $pat34 = Asset::query()->where('number', 'PAT-000034')->sole();
+    expect($pat34->status)->toBe(AssetStatus::Retired)
+        ->and(LoanItem::query()->where('asset_id', $pat34->id)->exists())->toBeFalse()
+        ->and(MaintenanceJob::query()->where('asset_id', $pat34->id)->exists())->toBeFalse();
 
     $counts = [Loan::query()->count(), MaintenanceJob::query()->count(), AssetReport::query()->count(), LoanItem::query()->count()];
     $this->seed(OperationsDemoSeeder::class);
