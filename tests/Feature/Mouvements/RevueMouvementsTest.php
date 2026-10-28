@@ -16,7 +16,6 @@ use App\Models\Site;
 use App\Models\User;
 use App\Support\DefaultRoles;
 use Filament\Facades\Filament;
-use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\ValidationException;
 
 use function Pest\Livewire\livewire;
@@ -137,13 +136,13 @@ it('garde la date d\'affectation quand la modification de la fiche ne touche pas
     expect($this->asset->fresh()->assigned_since->toDateString())->toBe('2024-01-10');
 });
 
-it('ne propose pas la réimpression ni la redirection sans page des étiquettes (RG-24)', function () {
-    expect(TransferAction::labelsPageExists())->toBeFalse();
+it('ne redirige pas vers les étiquettes quand la réimpression n\'est pas demandée (RG-24)', function () {
+    expect(TransferAction::labelsPageExists())->toBeTrue();
 
     livewire(ViewAsset::class, ['record' => $this->asset->getRouteKey()])
         ->callAction('transfer', [
             'site_id' => $this->siege->id, 'department_id' => $this->jeunesse->id,
-            'moved_on' => today()->toDateString(), 'lock_version' => $this->asset->lock_version, 'reprint_label' => true,
+            'moved_on' => today()->toDateString(), 'lock_version' => $this->asset->lock_version, 'reprint_label' => false,
         ])
         ->assertNoRedirect();
 
@@ -151,8 +150,6 @@ it('ne propose pas la réimpression ni la redirection sans page des étiquettes 
 });
 
 it('redirige vers la page des étiquettes quand elle existe (RG-24)', function () {
-    Route::get('admin/etiquettes', fn () => 'ok');
-
     expect(TransferAction::labelsPageExists())->toBeTrue();
 
     livewire(ViewAsset::class, ['record' => $this->asset->getRouteKey()])
