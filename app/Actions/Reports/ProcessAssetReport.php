@@ -2,7 +2,6 @@
 
 namespace App\Actions\Reports;
 
-use App\Actions\Assets\UpdateAsset;
 use App\Actions\Concerns\GuardsOperations;
 use App\Actions\Movements\TransferAssets;
 use App\Enums\PermissionAbility;
@@ -28,7 +27,7 @@ class ProcessAssetReport
 {
     use GuardsOperations;
 
-    public function __construct(private TransferAssets $transferAssets, private UpdateAsset $updateAssetAction) {}
+    public function __construct(private TransferAssets $transferAssets) {}
 
     public function takeCharge(AssetReport $report): AssetReport
     {
@@ -49,6 +48,10 @@ class ProcessAssetReport
         }
 
         return $this->within($report, function (AssetReport $locked) use ($reason): AssetReport {
+            if ($locked->handled_ref_id !== null) {
+                throw ValidationException::withMessages(['report' => 'Ce signalement est lié à une opération : il se clôt avec elle et ne peut plus être rejeté.']);
+            }
+
             $locked->update([
                 'status' => ReportStatus::Rejected,
                 'rejection_reason' => mb_substr($reason, 0, 2000),
@@ -64,7 +67,11 @@ class ProcessAssetReport
     // Traitement hors application (sortie du patrimoine, par exemple) : le gestionnaire clôt lui-même un signalement pris en charge.
     public function markHandled(AssetReport $report): AssetReport
     {
-        return $this->within($report, function (AssetReport $locked): AssetReport {
+        return $this->within($report, function (AssetReport $locked, Asset $asset): AssetReport {
+            if (! $asset->isDisposed()) {
+                throw ValidationException::withMessages(['report' => 'Un signalement ne se marque traité à la main que lorsque le bien est sorti du patrimoine : créez l\'opération correspondante.']);
+            }
+
             if ($locked->status !== ReportStatus::InProgress) {
                 throw ValidationException::withMessages(['report' => 'Prenez d\'abord ce signalement en charge.']);
             }
@@ -83,14 +90,14 @@ class ProcessAssetReport
     /**
      * @param  array<string, mixed>  $target  affectation et date du transfert (voir TransferAssets)
      */
-    public function transfer(AssetReport $report, array $target, ?int $expectedVersion = null): AssetReport
+    public function transfer(AssetReport $report, array $target, int $expectedVersion): AssetReport
     {
         return $this->within($report, function (AssetReport $locked, Asset $asset) use ($target, $expectedVersion): AssetReport {
             if ($locked->type !== ReportType::Move) {
                 throw ValidationException::withMessages(['report' => 'Ce signalement ne demande pas de déplacement.']);
             }
 
-            $movement = ($this->transferAssets)([$asset], $target, [$asset->getKey() => $expectedVersion ?? $asset->lock_version])->first();
+            $movement = ($this->transferAssets)([$asset], $target, [$asset->getKey() => $expectedVersion])->first();
 
             $this->close($locked, $movement);
 
@@ -98,7 +105,7 @@ class ProcessAssetReport
         });
     }
 
-    public function updateCondition(AssetReport $report, int $conditionId, ?int $expectedVersion = null): AssetReport
+    public function updateCondition(AssetReport $report, int $conditionId, int $expectedVersion): AssetReport
     {
         return $this->within($report, function (AssetReport $locked, Asset $asset) use ($conditionId, $expectedVersion): AssetReport {
             if ($locked->type !== ReportType::Condition) {
@@ -121,11 +128,16 @@ class ProcessAssetReport
                 throw ValidationException::withMessages(['condition' => 'Cet état est déjà celui de la fiche du bien.']);
             }
 
-            $old = $asset->condition?->label;
-            $asset->unsetRelation('condition');
+            if ($asset->isDisposed()) {
+                throw ValidationException::withMessages(['condition' => 'Ce bien est sorti du patrimoine : sa fiche ne peut plus être modifiée.']);
+            }
 
-            // RG-86 : la mise à jour passe par UpdateAsset, avec le contrôle de version sous verrou.
-            $this->applyCondition($asset, $condition, $expectedVersion ?? $asset->lock_version);
+            // RG-86 : contrôle de version sous verrou ; seul l'état change, les champs dérivés de la fiche ne sont pas recalculés.
+            $this->assertVersion($asset, $expectedVersion);
+
+            $old = $asset->condition?->label;
+            $asset->update(['asset_condition_id' => $condition->getKey()]);
+            $asset->unsetRelation('condition');
 
             activity('signalements')
                 ->performedOn($asset)
@@ -171,15 +183,6 @@ class ProcessAssetReport
 
             return $locked;
         });
-    }
-
-    private function applyCondition(Asset $asset, AssetCondition $condition, int $expectedVersion): void
-    {
-        // Les champs de la fiche sont repris tels quels : UpdateAsset recalcule les règles de la fiche entière.
-        ($this->updateAssetAction)($asset, [
-            ...$asset->only((new Asset)->getFillable()),
-            'asset_condition_id' => $condition->getKey(),
-        ], $expectedVersion);
     }
 
     /**

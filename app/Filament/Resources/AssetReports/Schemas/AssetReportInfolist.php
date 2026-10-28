@@ -6,6 +6,7 @@ use App\Filament\Resources\Assets\AssetResource;
 use App\Filament\Resources\Maintenance\MaintenanceResource;
 use App\Models\AssetReport;
 use App\Models\MaintenanceJob;
+use App\Support\OperationLabels;
 use Filament\Infolists\Components\ImageEntry;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Section;
@@ -60,8 +61,7 @@ class AssetReportInfolist
                     TextEntry::make('operation')
                         ->label('Opération liée')
                         ->state(fn (AssetReport $record): ?string => match (true) {
-                            $record->handledRef instanceof MaintenanceJob => 'Intervention '.$record->handledRef->reference,
-                            $record->handledRef !== null => class_basename($record->handledRef).' n° '.$record->handledRef->getKey(),
+                            $record->handledRef !== null => OperationLabels::for($record->handledRef, asOperation: true),
                             default => null,
                         })
                         ->url(fn (AssetReport $record): ?string => $record->handledRef instanceof MaintenanceJob

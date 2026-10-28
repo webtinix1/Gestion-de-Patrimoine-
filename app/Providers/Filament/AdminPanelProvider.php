@@ -57,7 +57,7 @@ class AdminPanelProvider extends PanelProvider
             ->authenticatedRoutes(function (): void {
                 Route::get('documents/{document}/fichier', DocumentFileController::class)->name('documents.file');
                 Route::get('biens/{asset}/photo', AssetPhotoController::class)->name('assets.photo');
-                Route::get('signalements/{report}/photo', AssetReportPhotoController::class)->name('reports.photo');
+                Route::get('signalements/{report}/photo', AssetReportPhotoController::class)->name('reports.photo')->whereNumber('report');
             })
             ->darkMode(false)
             ->sidebarCollapsibleOnDesktop()

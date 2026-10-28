@@ -20,9 +20,9 @@ use App\Models\MaintenanceJob;
 use App\Models\Movement;
 use App\Models\User;
 use App\Support\DefaultRoles;
+use App\Support\DisposalUrl;
 use Filament\Facades\Filament;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Tests\Support\OperationsWorld;
 
@@ -212,7 +212,7 @@ it('le gestionnaire traite un changement d\'état par une mise à jour de la fic
     livewire(ViewAssetReport::class, ['record' => $report->getRouteKey()])
         ->assertActionVisible('updateCondition')
         ->assertActionHidden('transfer')
-        ->callAction('updateCondition', ['condition_id' => $this->w->aReparer->id, 'asset_version' => $this->asset->lock_version])
+        ->callAction('updateCondition', ['condition_id' => $this->w->aReparer->id])
         ->assertHasNoActionErrors();
 
     expect($report->fresh()->status)->toBe(ReportStatus::Handled)
@@ -222,12 +222,10 @@ it('le gestionnaire traite un changement d\'état par une mise à jour de la fic
 it('une mise à jour avec une fiche modifiée entre-temps est refusée et le signalement reste ouvert (RG-86)', function () {
     $report = screenReport(['type' => ReportType::Condition, 'reported_condition_id' => $this->w->aReparer->id]);
     $this->actingAs($this->w->manager);
-    $opened = $this->asset->lock_version;
+    $page = livewire(ViewAssetReport::class, ['record' => $report->getRouteKey()])->mountAction('updateCondition');
     $this->asset->update(['notes' => 'Modifié ailleurs']);
 
-    livewire(ViewAssetReport::class, ['record' => $report->getRouteKey()])
-        ->callAction('updateCondition', ['condition_id' => $this->w->aReparer->id, 'asset_version' => $opened])
-        ->assertNotified('Mise à jour impossible');
+    $page->callMountedAction()->assertNotified('Mise à jour impossible');
 
     expect($report->fresh()->status)->toBe(ReportStatus::New)
         ->and($this->asset->fresh()->asset_condition_id)->toBe($this->w->bon->id);
@@ -237,15 +235,22 @@ it('propose la sortie par le lien du lot 10 seulement quand la page existe (RG-6
     $report = screenReport(['type' => ReportType::Condition, 'reported_condition_id' => $this->w->horsService->id, 'urgency' => ReportUrgency::Urgent]);
     $this->actingAs($this->w->manager);
 
-    livewire(ViewAssetReport::class, ['record' => $report->getRouteKey()])->assertActionHidden('proposeDisposal');
+    if (! DisposalUrl::pageExists()) {
+        livewire(ViewAssetReport::class, ['record' => $report->getRouteKey()])->assertActionHidden('proposeDisposal');
+    }
 
-    Route::get('admin/sorties/create', fn () => 'ok');
+    OperationsWorld::simulateDisposalPage();
 
     livewire(ViewAssetReport::class, ['record' => $report->getRouteKey()])
         ->assertActionVisible('proposeDisposal')
         ->assertActionHasUrl('proposeDisposal', url('/admin/sorties/create').'?bien='.$this->asset->id.'&motif=retirement')
         ->assertActionHidden('markHandled')
         ->callAction('takeCharge');
+
+    livewire(ViewAssetReport::class, ['record' => $report->getRouteKey()])->assertActionHidden('markHandled');
+
+    // La sortie du patrimoine est faite (lot 10) : le signalement peut être clos à la main.
+    $this->asset->forceFill(['disposed_at' => today()->toDateString(), 'status' => AssetStatus::Retired])->save();
 
     livewire(ViewAssetReport::class, ['record' => $report->getRouteKey()])
         ->assertActionVisible('markHandled')

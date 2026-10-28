@@ -6,7 +6,9 @@ use App\Actions\Loans\CreateLoan as CreateLoanAction;
 use App\Enums\LoanDirection;
 use App\Exceptions\ConcurrentModificationException;
 use App\Filament\Resources\Loans\LoanResource;
+use App\Filament\Support\HoldsOperationVersions;
 use App\Filament\Support\OperationFields;
+use App\Models\Asset;
 use App\Models\DocumentType;
 use App\Models\Loan;
 use Filament\Resources\Pages\CreateRecord;
@@ -18,11 +20,23 @@ use Illuminate\Validation\ValidationException;
 
 class CreateLoan extends CreateRecord
 {
+    use HoldsOperationVersions;
+
     protected static string $resource = LoanResource::class;
 
     protected static ?string $title = 'Enregistrer un prêt ou un emprunt';
 
     protected static bool $canCreateAnother = false;
+
+    public function mount(): void
+    {
+        parent::mount();
+
+        // Fiche ouverte depuis « Prêter » : la version du bien présélectionné est retenue dès l'ouverture.
+        if (request()->integer('bien') > 0) {
+            $this->holdVersions(Asset::query()->whereKey(request()->integer('bien'))->pluck('lock_version', 'id')->all());
+        }
+    }
 
     /**
      * @param  array<string, mixed>  $data
@@ -32,9 +46,10 @@ class CreateLoan extends CreateRecord
         $files = Arr::pull($data, 'files');
         $typeId = Arr::pull($data, 'document_type_id');
         $assetIds = (array) Arr::pull($data, 'asset_ids');
-        $versions = collect((array) Arr::pull($data, 'asset_versions'))->mapWithKeys(fn (mixed $version, mixed $id): array => [(int) $id => (int) $version])->all();
 
         try {
+            $versions = OperationFields::heldVersions($this, $assetIds);
+
             return app(CreateLoanAction::class)(
                 $data,
                 $assetIds,

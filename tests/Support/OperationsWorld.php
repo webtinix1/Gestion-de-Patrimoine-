@@ -9,6 +9,8 @@ use App\Models\Department;
 use App\Models\Site;
 use App\Models\User;
 use App\Support\DefaultRoles;
+use App\Support\DisposalUrl;
+use Illuminate\Support\Facades\Route;
 
 /**
  * Décor commun aux tests des prêts, de la maintenance et des signalements (lot 8).
@@ -32,6 +34,19 @@ final class OperationsWorld
     public AssetCondition $aReparer;
 
     public AssetCondition $horsService;
+
+    /**
+     * Simule la page des sorties (lot 10) seulement si elle n'existe pas encore dans l'application.
+     */
+    public static function simulateDisposalPage(): void
+    {
+        DisposalUrl::forget();
+
+        if (! DisposalUrl::pageExists()) {
+            Route::get('admin/sorties/create', fn () => 'ok');
+            DisposalUrl::forget();
+        }
+    }
 
     public static function create(): self
     {

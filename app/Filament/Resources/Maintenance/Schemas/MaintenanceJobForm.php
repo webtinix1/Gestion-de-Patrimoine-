@@ -14,7 +14,6 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
-use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Carbon;
 
@@ -34,14 +33,10 @@ class MaintenanceJobForm
                     OperationFields::assetSelect('asset_id', 'Bien', statuses: null)
                         ->default(fn (): ?int => $presetAsset()?->getKey())
                         ->live()
-                        ->afterStateUpdated(fn (mixed $state, Set $set) => $set('asset_version', filled($state) ? Asset::query()->whereKey($state)->value('lock_version') : null))
+                        ->afterStateUpdated(fn (mixed $state, $livewire) => $livewire->holdVersions(filled($state) ? Asset::query()->whereKey($state)->pluck('lock_version', 'id')->all() : [], replace: true))
                         ->disabled(fn (string $operation): bool => $operation === 'edit')
                         ->dehydrated(fn (string $operation): bool => $operation === 'create')
                         ->required(),
-                    // RG-86 : version de la fiche lue à la sélection du bien.
-                    Hidden::make('asset_version')
-                        ->default(fn (): mixed => $presetAsset()?->lock_version)
-                        ->dehydrated(fn (string $operation): bool => $operation === 'create'),
                     // RG-64 : intervention créée depuis un signalement.
                     Hidden::make('report_id')
                         ->default(fn (): ?int => request()->integer('signalement') > 0 ? request()->integer('signalement') : null)

@@ -302,7 +302,7 @@ it('un transfert refusé ne traite pas le signalement (tout ou rien)', function 
 
     expect(fn () => app(ProcessAssetReport::class)->transfer($report, [
         'site_id' => $this->w->site->id, 'department_id' => $this->w->louange->id, 'moved_on' => today()->toDateString(),
-    ]))->toThrow(ValidationException::class)
+    ], $this->asset->lock_version))->toThrow(ValidationException::class)
         ->and($report->fresh()->status)->toBe(ReportStatus::New)
         ->and(Movement::query()->count())->toBe(0);
 
@@ -317,11 +317,11 @@ it('le transfert ne traite que les signalements de déplacement', function () {
 
     expect(fn () => app(ProcessAssetReport::class)->transfer($report, [
         'site_id' => $this->w->site->id, 'department_id' => $this->w->jeunesse->id, 'moved_on' => today()->toDateString(),
-    ]))->toThrow(ValidationException::class)
-        ->and(fn () => app(ProcessAssetReport::class)->updateCondition($report, $this->w->moyen->id))->toThrow(ValidationException::class);
+    ], $this->asset->lock_version))->toThrow(ValidationException::class)
+        ->and(fn () => app(ProcessAssetReport::class)->updateCondition($report, $this->w->moyen->id, $this->asset->lock_version))->toThrow(ValidationException::class);
 });
 
-it('traite un changement d\'état par UpdateAsset : état mis à jour, version incrémentée, paramètres d\'amortissement conservés (RG-64, RG-86)', function () {
+it('traite un changement d\'état par une mise à jour minimale de la fiche : état mis à jour, version incrémentée, paramètres d\'amortissement conservés (RG-64, RG-86)', function () {
     $asset = $this->w->asset(['acquisition_cost' => 540000, 'is_depreciable' => false, 'residual_value' => 0, 'notes' => 'Note conservée']);
     $report = makeReport(['asset_id' => $asset->id, 'type' => ReportType::Condition, 'reported_condition_id' => $this->w->aReparer->id]);
     $version = $asset->lock_version;
@@ -349,9 +349,9 @@ it('un signalement traité par un autre gestionnaire entre-temps n\'est pas trai
     $report = makeReport(['type' => ReportType::Condition, 'reported_condition_id' => $this->w->aReparer->id]);
     $stale = AssetReport::query()->find($report->id);
 
-    app(ProcessAssetReport::class)->updateCondition($report, $this->w->aReparer->id);
+    app(ProcessAssetReport::class)->updateCondition($report, $this->w->aReparer->id, $this->asset->lock_version);
 
-    expect(fn () => app(ProcessAssetReport::class)->updateCondition($stale, $this->w->moyen->id))->toThrow(ValidationException::class)
+    expect(fn () => app(ProcessAssetReport::class)->updateCondition($stale, $this->w->moyen->id, $this->asset->fresh()->lock_version))->toThrow(ValidationException::class)
         ->and($this->asset->fresh()->asset_condition_id)->toBe($this->w->aReparer->id);
 });
 
@@ -374,14 +374,40 @@ it('un signalement ne se modifie pas et ne se supprime pas (policy et modèle)',
         ->and($this->w->manager->can('deleteAny', AssetReport::class))->toBeFalse();
 });
 
-it('marque comme traité un signalement pris en charge hors de l\'application (sortie)', function () {
+it('ne marque comme traité à la main qu\'un signalement pris en charge dont le bien est sorti du patrimoine (QL8-7)', function () {
     $report = makeReport(['type' => ReportType::Condition, 'reported_condition_id' => $this->w->horsService->id]);
 
     expect(fn () => app(ProcessAssetReport::class)->markHandled($report))->toThrow(ValidationException::class);
 
     app(ProcessAssetReport::class)->takeCharge($report);
 
+    // Bien encore au patrimoine : refus (c'était le contournement signalé en revue).
+    expect(fn () => app(ProcessAssetReport::class)->markHandled($report))->toThrow(ValidationException::class)
+        ->and($report->fresh()->status)->toBe(ReportStatus::InProgress);
+
+    $this->asset->forceFill(['disposed_at' => today()->toDateString(), 'status' => AssetStatus::Retired])->save();
+
     expect(app(ProcessAssetReport::class)->markHandled($report)->status)->toBe(ReportStatus::Handled);
+});
+
+it('refuse le rejet d\'un signalement lié à une opération (M5)', function () {
+    $report = makeReport(['type' => ReportType::Condition, 'reported_condition_id' => $this->w->aReparer->id]);
+    app(OpenMaintenanceJob::class)([
+        'asset_id' => $this->asset->id, 'nature' => MaintenanceNature::Repair, 'reason' => 'x', 'starts_on' => today()->toDateString(),
+        'provider_type' => ProviderType::Internal, 'report_id' => $report->id,
+    ]);
+
+    expect(fn () => app(ProcessAssetReport::class)->reject($report, 'Motif suffisant'))->toThrow(ValidationException::class)
+        ->and($report->fresh()->status)->toBe(ReportStatus::InProgress);
+});
+
+it('la mise à jour d\'état ne recalcule aucun champ dérivé de la fiche (S3)', function () {
+    $asset = $this->w->asset(['acquisition_cost' => 540000, 'is_depreciable' => true, 'duration_years' => 7, 'residual_value' => 1000]);
+    $report = makeReport(['asset_id' => $asset->id, 'type' => ReportType::Condition, 'reported_condition_id' => $this->w->aReparer->id]);
+
+    app(ProcessAssetReport::class)->updateCondition($report, $this->w->aReparer->id, $asset->lock_version);
+
+    expect($asset->fresh()->only(['duration_years', 'residual_value', 'is_depreciable', 'acquisition_cost']))->toBe(['duration_years' => 7, 'residual_value' => 1000, 'is_depreciable' => true, 'acquisition_cost' => 540000]);
 });
 
 it('un signalement lié à une intervention ne se marque pas traité à la main et ne se lie pas deux fois', function () {

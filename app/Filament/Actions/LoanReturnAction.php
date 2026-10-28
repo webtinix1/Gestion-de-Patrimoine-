@@ -42,27 +42,25 @@ final class LoanReturnAction
             ->modalSubmitActionLabel('Valider le retour')
             ->modalWidth('3xl')
             ->visible(fn (Loan $record): bool => auth()->user()?->can('update', $record) ?? false)
-            ->fillForm(function (Loan $record): array {
+            ->fillForm(function (Loan $record, $livewire): array {
                 $record->loadMissing(['items.asset', 'items.conditionOut']);
 
-                return [
-                    'returned_on' => today()->toDateString(),
-                    'open_maintenance' => true,
-                    'is_out' => $record->direction === LoanDirection::Out,
-                    // RG-86 : versions des fiches à l'ouverture de la fenêtre, comparées à l'enregistrement.
-                    'versions' => $record->items->filter(fn (LoanItem $item): bool => $item->asset !== null)
-                        ->mapWithKeys(fn (LoanItem $item): array => [$item->asset_id => (int) $item->asset?->lock_version])->all(),
-                    'items' => $record->items->map(fn (LoanItem $item): array => [
-                        'id' => $item->getKey(),
-                        'label' => $item->label(),
-                        'condition_out_id' => $item->condition_out_id,
-                        'condition_back_id' => $item->condition_out_id,
-                        'return_notes' => null,
-                    ])->values()->all(),
-                ];
+                // RG-86 : versions des fiches à l'ouverture de la fenêtre, gardées côté serveur.
+                return OperationFields::held($livewire, $record->items->filter(fn (LoanItem $item): bool => $item->asset !== null)
+                    ->mapWithKeys(fn (LoanItem $item): array => [(int) $item->asset_id => (int) $item->asset?->lock_version])->all(), [
+                        'returned_on' => today()->toDateString(),
+                        'open_maintenance' => true,
+                        'is_out' => $record->direction === LoanDirection::Out,
+                        'items' => $record->items->map(fn (LoanItem $item): array => [
+                            'id' => $item->getKey(),
+                            'label' => $item->label(),
+                            'condition_out_id' => $item->condition_out_id,
+                            'condition_back_id' => $item->condition_out_id,
+                            'return_notes' => null,
+                        ])->values()->all(),
+                    ]);
             })
             ->schema([
-                Hidden::make('versions'),
                 Hidden::make('is_out'),
                 Section::make('Constat au retour')
                     ->columns(2)
@@ -84,7 +82,7 @@ final class LoanReturnAction
                                 Hidden::make('condition_out_id'),
                                 Select::make('condition_back_id')
                                     ->label('État au retour')
-                                    ->options(fn (): array => AssetCondition::query()->orderBy('sort')->pluck('label', 'id')->all())
+                                    ->options(fn (): array => AssetCondition::query()->where('is_active', true)->orderBy('sort')->pluck('label', 'id')->all())
                                     ->native(false)
                                     ->live()
                                     ->required(),
@@ -106,15 +104,15 @@ final class LoanReturnAction
                         ),
                     ]),
             ])
-            ->action(function (array $data, Loan $record, Action $action): void {
+            ->action(function (array $data, Loan $record, Action $action, $livewire): void {
                 $items = collect((array) ($data['items'] ?? []))->mapWithKeys(fn (mixed $item): array => [
                     (int) ($item['id'] ?? 0) => ['condition_back_id' => $item['condition_back_id'] ?? null, 'return_notes' => $item['return_notes'] ?? null],
                 ])->all();
 
-                $versions = collect((array) ($data['versions'] ?? []))->mapWithKeys(fn (mixed $version, mixed $id): array => [(int) $id => (int) $version])->all();
                 $typeId = $data['document_type_id'] ?? null;
 
                 try {
+                    $versions = OperationFields::heldVersions($livewire, $record->items()->whereNotNull('asset_id')->pluck('asset_id'));
                     $loan = app(RecordLoanReturn::class)(
                         $record,
                         ['returned_on' => $data['returned_on'] ?? null, 'items' => $items],
@@ -130,13 +128,18 @@ final class LoanReturnAction
                 }
 
                 // RG-57 : un bien rendu dans un état moins bon fait proposer une intervention.
-                $degraded = $loan->items->filter(fn (LoanItem $item): bool => $item->isDegraded() && $item->asset_id !== null)->values();
+                $degraded = $loan->items->filter(fn (LoanItem $item): bool => $item->isDegraded() && $item->asset !== null && ! $item->asset->isDisposed())->values();
+                $canOpen = auth()->user()?->can('create', MaintenanceJob::class) ?? false;
 
+                // Une action « Intervention » par bien dégradé dans la notification.
                 Notification::make()->success()->title('Retour enregistré')
                     ->body($degraded->isEmpty() ? null : 'État dégradé : '.$degraded->map(fn (LoanItem $item): string => $item->asset?->number.' ('.$item->conditionBack?->label.')')->join(', ').'.')
+                    ->actions($canOpen ? $degraded->map(fn (LoanItem $item): Action => Action::make('maintenance'.$item->asset_id)
+                        ->label('Intervention '.$item->asset?->number)
+                        ->url(MaintenanceResource::getUrl('create').'?'.http_build_query(['bien' => $item->asset_id])))->all() : [])
                     ->send();
 
-                if ($degraded->isNotEmpty() && ($data['open_maintenance'] ?? false) && (auth()->user()?->can('create', MaintenanceJob::class) ?? false)) {
+                if ($degraded->count() === 1 && ($data['open_maintenance'] ?? false) && $canOpen) {
                     $action->redirect(MaintenanceResource::getUrl('create').'?'.http_build_query(['bien' => $degraded->first()->asset_id]));
                 }
             });

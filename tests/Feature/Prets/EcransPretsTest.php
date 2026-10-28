@@ -73,9 +73,10 @@ it('enregistre un prêt depuis le formulaire (E16, RG-55, RG-56)', function () {
     $stock = $this->w->asset(['status' => AssetStatus::InStock]);
 
     livewire(CreateLoan::class)
+        ->set('data.asset_ids', [$this->asset->id, $stock->id])
         ->fillForm([
             'direction' => 'out',
-            'asset_ids' => [$this->asset->id, $stock->id],
+
             'borrower_type' => 'external',
             'borrower_name' => 'Chorale Béthel',
             'borrower_contact' => 'Mme Mabika · +242 05 000 00 00',
@@ -96,8 +97,9 @@ it('enregistre un prêt depuis le formulaire (E16, RG-55, RG-56)', function () {
 
 it('enregistre un prêt interne à un département', function () {
     livewire(CreateLoan::class)
+        ->set('data.asset_ids', [$this->asset->id])
         ->fillForm([
-            'direction' => 'out', 'asset_ids' => [$this->asset->id], 'borrower_type' => 'internal', 'department_id' => $this->w->jeunesse->id,
+            'direction' => 'out',  'borrower_type' => 'internal', 'department_id' => $this->w->jeunesse->id,
             'out_on' => today()->toDateString(), 'due_on' => today()->addDays(7)->toDateString(), 'responsible_id' => $this->w->manager->id,
         ])
         ->call('create')
@@ -138,8 +140,9 @@ it('garde le formulaire ouvert et ne change rien quand le prêt est refusé', fu
     $maintenance = $this->w->asset(['status' => AssetStatus::InMaintenance]);
 
     livewire(CreateLoan::class)
+        ->set('data.asset_ids', [$maintenance->id])
         ->fillForm([
-            'direction' => 'out', 'asset_ids' => [$maintenance->id], 'borrower_type' => 'external', 'borrower_name' => 'X',
+            'direction' => 'out',  'borrower_type' => 'external', 'borrower_name' => 'X',
             'out_on' => today()->toDateString(), 'due_on' => today()->addDays(7)->toDateString(), 'responsible_id' => $this->w->manager->id,
         ])
         ->call('create')
@@ -154,8 +157,9 @@ it('refuse de prêter, par manipulation du formulaire, un bien hors du périmèt
     $this->actingAs($this->w->restrictedManager($this->w->louange));
 
     livewire(CreateLoan::class)
+        ->set('data.asset_ids', [$foreign->id])
         ->fillForm([
-            'direction' => 'out', 'asset_ids' => [$foreign->id], 'borrower_type' => 'external', 'borrower_name' => 'X',
+            'direction' => 'out',  'borrower_type' => 'external', 'borrower_name' => 'X',
             'out_on' => today()->toDateString(), 'due_on' => today()->addDays(7)->toDateString(), 'responsible_id' => auth()->id(),
         ])
         ->call('create');

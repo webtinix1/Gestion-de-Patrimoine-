@@ -5,6 +5,7 @@ namespace App\Filament\Resources\AssetReports\Pages;
 use App\Enums\ReportStatus;
 use App\Filament\Actions\AssetReportActions;
 use App\Filament\Resources\AssetReports\AssetReportResource;
+use App\Filament\Support\HoldsOperationVersions;
 use App\Models\AssetReport;
 use Filament\Resources\Pages\ListRecords;
 use Filament\Schemas\Components\Tabs\Tab;
@@ -12,6 +13,8 @@ use Illuminate\Database\Eloquent\Builder;
 
 class ListAssetReports extends ListRecords
 {
+    use HoldsOperationVersions;
+
     protected static string $resource = AssetReportResource::class;
 
     protected function getHeaderActions(): array

@@ -18,7 +18,6 @@ use App\Models\Asset;
 use App\Models\MaintenanceJob;
 use App\Support\DisposalUrl;
 use Filament\Facades\Filament;
-use Illuminate\Support\Facades\Route;
 use Livewire\Livewire;
 use Tests\Support\OperationsWorld;
 
@@ -68,9 +67,8 @@ it('liste les interventions avec leurs filtres (E22)', function () {
 
 it('ouvre une intervention depuis le formulaire et passe le bien En maintenance (E23, RG-60, RG-61)', function () {
     livewire(CreateMaintenanceJob::class)
+        ->set('data.asset_id', $this->asset->id)
         ->fillForm([
-            'asset_id' => $this->asset->id,
-            'asset_version' => $this->asset->lock_version,
             'nature' => 'repair',
             'reason' => 'Embrayage qui patine, révision des 150 000 km',
             'starts_on' => today()->toDateString(),
@@ -97,12 +95,13 @@ it('préselectionne le bien quand on arrive depuis sa fiche ou depuis un retour 
 });
 
 it('refuse l\'ouverture quand la fiche a changé depuis la sélection du bien (RG-86)', function () {
-    $opened = $this->asset->lock_version;
+    // La version est retenue côté serveur à la sélection du bien ; la fiche change ensuite.
+    $page = livewire(CreateMaintenanceJob::class)->set('data.asset_id', $this->asset->id);
     $this->asset->update(['notes' => 'Modifié ailleurs']);
 
-    livewire(CreateMaintenanceJob::class)
+    $page
         ->fillForm([
-            'asset_id' => $this->asset->id, 'asset_version' => $opened, 'nature' => 'repair', 'reason' => 'x', 'starts_on' => today()->toDateString(),
+            'nature' => 'repair', 'reason' => 'x', 'starts_on' => today()->toDateString(),
             'provider_type' => 'provider', 'put_in_maintenance' => true,
         ])
         ->call('create')
@@ -146,7 +145,9 @@ it('refuse à la clôture un statut posé par une opération (RG-12), en gardant
 it('un résultat irréparable propose la sortie seulement si la page des sorties existe (RG-61)', function () {
     $job = screenJob($this->asset);
 
-    expect(DisposalUrl::pageExists())->toBeFalse();
+    if (DisposalUrl::pageExists()) {
+        $this->markTestSkipped('La page des sorties (lot 10) existe : le cas « sans page » ne s\'applique pas.');
+    }
 
     livewire(ViewMaintenanceJob::class, ['record' => $job->getRouteKey()])
         ->callAction('close', [
@@ -159,7 +160,7 @@ it('un résultat irréparable propose la sortie seulement si la page des sorties
 });
 
 it('propose la sortie par le lien du lot 10 quand la page existe', function () {
-    Route::get('admin/sorties/create', fn () => 'ok');
+    OperationsWorld::simulateDisposalPage();
     $job = screenJob($this->asset);
 
     livewire(ViewMaintenanceJob::class, ['record' => $job->getRouteKey()])

@@ -9,7 +9,6 @@ use App\Filament\Support\OperationFields;
 use App\Models\Asset;
 use App\Models\Department;
 use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -17,7 +16,6 @@ use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Text;
 use Filament\Schemas\Components\Utilities\Get;
-use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 
 /**
@@ -55,17 +53,13 @@ class LoanForm
                         ->helperText('Seuls les biens En service ou En stock sont disponibles. Scannez ou saisissez un numéro patrimonial.')
                         ->default(fn (): array => ($asset = $presetAsset()) !== null ? [$asset->getKey()] : [])
                         ->live()
-                        ->afterStateUpdated(function (mixed $state, Get $get, Set $set): void {
-                            // RG-86 : la version de chaque fiche est retenue à sa sélection, jamais rafraîchie ensuite.
-                            $known = (array) $get('asset_versions');
-                            $versions = Asset::query()->whereKey((array) $state)->pluck('lock_version', 'id')->all();
-                            $set('asset_versions', collect($versions)->map(fn (mixed $version, mixed $id): mixed => $known[$id] ?? $version)->all());
+                        ->afterStateUpdated(function (mixed $state, $livewire): void {
+                            // RG-86 : la version de chaque fiche est retenue côté serveur à sa sélection, jamais rafraîchie ensuite.
+                            $livewire->holdVersions(Asset::query()->whereKey((array) $state)->pluck('lock_version', 'id')->all());
                         })
                         ->visible($isOut)
                         ->required($isOut)
                         ->columnSpanFull(),
-                    Hidden::make('asset_versions')
-                        ->default(fn (): array => ($asset = $presetAsset()) !== null ? [$asset->getKey() => $asset->lock_version] : []),
                     TextInput::make('external_designation')
                         ->label('Désignation du bien emprunté')
                         ->maxLength(255)

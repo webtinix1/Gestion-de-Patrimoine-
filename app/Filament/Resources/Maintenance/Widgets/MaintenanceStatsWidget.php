@@ -19,8 +19,8 @@ class MaintenanceStatsWidget extends StatsOverviewWidget
         return [
             Stat::make('En cours', MaintenanceJob::query()->where('status', MaintenanceStatus::Ongoing)->count())->color('info'),
             Stat::make('Planifiées', MaintenanceJob::query()->where('status', MaintenanceStatus::Planned)->count()),
-            Stat::make('Terminées en '.$year, MaintenanceJob::query()->where('status', MaintenanceStatus::Done)->whereYear('ends_on', $year)->count()),
-            Stat::make('Coût '.$year, Money::format((int) MaintenanceJob::query()->whereYear('starts_on', $year)->sum('cost')).' FCFA'),
+            Stat::make('Terminées (début en '.$year.')', MaintenanceJob::query()->where('status', MaintenanceStatus::Done)->whereYear('starts_on', $year)->count()),
+            Stat::make('Coût (début en '.$year.')', Money::format((int) MaintenanceJob::query()->whereYear('starts_on', $year)->sum('cost')).' FCFA'),
         ];
     }
 }

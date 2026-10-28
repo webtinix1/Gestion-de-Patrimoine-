@@ -37,17 +37,15 @@ final class MaintenanceJobActions
             ->icon(Heroicon::OutlinedPlay)
             ->modalSubmitActionLabel('Démarrer')
             ->visible(fn (MaintenanceJob $record): bool => $record->status === MaintenanceStatus::Planned && (auth()->user()?->can('update', $record) ?? false))
-            ->fillForm(fn (MaintenanceJob $record): array => [
+            ->fillForm(fn (MaintenanceJob $record, $livewire): array => OperationFields::held($livewire, [$record->asset_id => (int) $record->asset?->lock_version], [
                 'put_in_maintenance' => true,
-                'asset_version' => $record->asset?->lock_version,
-            ])
+            ]))
             ->schema([
-                Hidden::make('asset_version'),
                 Checkbox::make('put_in_maintenance')->label('Passer le bien au statut « En maintenance » pendant l\'intervention'),
             ])
-            ->action(function (array $data, MaintenanceJob $record, Action $action): void {
+            ->action(function (array $data, MaintenanceJob $record, Action $action, $livewire): void {
                 try {
-                    app(StartMaintenanceJob::class)($record, (bool) ($data['put_in_maintenance'] ?? false), filled($data['asset_version'] ?? null) ? (int) $data['asset_version'] : null);
+                    app(StartMaintenanceJob::class)($record, (bool) ($data['put_in_maintenance'] ?? false), OperationFields::heldVersions($livewire, [$record->asset_id])[$record->asset_id]);
                 } catch (ValidationException|ConcurrentModificationException|AuthorizationException $exception) {
                     OperationFields::notifyFailure('Démarrage impossible', $exception);
                     $action->halt();
@@ -68,18 +66,16 @@ final class MaintenanceJobActions
             ->modalSubmitActionLabel('Clôturer l\'intervention')
             ->modalWidth('3xl')
             ->visible(fn (MaintenanceJob $record): bool => $record->status === MaintenanceStatus::Ongoing && (auth()->user()?->can('update', $record) ?? false))
-            ->fillForm(fn (MaintenanceJob $record): array => [
+            ->fillForm(fn (MaintenanceJob $record, $livewire): array => OperationFields::held($livewire, [$record->asset_id => (int) $record->asset?->lock_version], [
                 'ends_on' => today()->toDateString(),
                 'condition_after_id' => $record->asset?->asset_condition_id,
                 'status_after' => AssetStatus::InService->value,
                 'cost' => $record->cost,
                 'cost_reference' => $record->cost_reference,
-                'asset_version' => $record->asset?->lock_version,
                 'status_applies' => $record->asset !== null
                     && ($record->asset->status === AssetStatus::InMaintenance || $record->asset->status->isManuallySelectable()),
-            ])
+            ]))
             ->schema([
-                Hidden::make('asset_version'),
                 Hidden::make('status_applies'),
                 Select::make('result')
                     ->label('Résultat')
@@ -102,14 +98,14 @@ final class MaintenanceJobActions
                 Textarea::make('notes')->label('Observations')->rows(3)->columnSpanFull(),
                 ...OperationFields::documents('Joindre la facture ou le rapport (facultatif)', 'Justificatif de maintenance'),
             ])
-            ->action(function (array $data, MaintenanceJob $record, Action $action): void {
+            ->action(function (array $data, MaintenanceJob $record, Action $action, $livewire): void {
                 $typeId = $data['document_type_id'] ?? null;
 
                 try {
                     $job = app(CloseMaintenanceJob::class)(
                         $record,
                         $data,
-                        filled($data['asset_version'] ?? null) ? (int) $data['asset_version'] : null,
+                        OperationFields::heldVersions($livewire, [$record->asset_id])[$record->asset_id],
                         $data['files'] ?? [],
                         $typeId ? DocumentType::query()->active()->find($typeId) : null,
                     );

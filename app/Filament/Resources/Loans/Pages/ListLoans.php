@@ -6,6 +6,7 @@ use App\Enums\LoanDirection;
 use App\Enums\LoanStatus;
 use App\Filament\Resources\Loans\LoanResource;
 use App\Filament\Resources\Loans\Widgets\LoanStatsWidget;
+use App\Filament\Support\HoldsOperationVersions;
 use App\Models\Loan;
 use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
@@ -14,6 +15,8 @@ use Illuminate\Database\Eloquent\Builder;
 
 class ListLoans extends ListRecords
 {
+    use HoldsOperationVersions;
+
     protected static string $resource = LoanResource::class;
 
     protected function getHeaderActions(): array

@@ -5,7 +5,9 @@ namespace App\Filament\Resources\Maintenance\Pages;
 use App\Actions\Maintenance\OpenMaintenanceJob;
 use App\Exceptions\ConcurrentModificationException;
 use App\Filament\Resources\Maintenance\MaintenanceResource;
+use App\Filament\Support\HoldsOperationVersions;
 use App\Filament\Support\OperationFields;
+use App\Models\Asset;
 use App\Models\DocumentType;
 use App\Models\MaintenanceJob;
 use Filament\Resources\Pages\CreateRecord;
@@ -17,11 +19,22 @@ use Illuminate\Validation\ValidationException;
 
 class CreateMaintenanceJob extends CreateRecord
 {
+    use HoldsOperationVersions;
+
     protected static string $resource = MaintenanceResource::class;
 
     protected static ?string $title = 'Nouvelle intervention';
 
     protected static bool $canCreateAnother = false;
+
+    public function mount(): void
+    {
+        parent::mount();
+
+        if (request()->integer('bien') > 0) {
+            $this->holdVersions(Asset::query()->whereKey(request()->integer('bien'))->pluck('lock_version', 'id')->all(), replace: true);
+        }
+    }
 
     /**
      * @param  array<string, mixed>  $data
@@ -30,12 +43,13 @@ class CreateMaintenanceJob extends CreateRecord
     {
         $files = Arr::pull($data, 'files');
         $typeId = Arr::pull($data, 'document_type_id');
-        $version = Arr::pull($data, 'asset_version');
 
         try {
+            $version = OperationFields::heldVersions($this, [(int) ($data['asset_id'] ?? 0)])[(int) ($data['asset_id'] ?? 0)];
+
             return app(OpenMaintenanceJob::class)(
                 $data,
-                filled($version) ? (int) $version : null,
+                $version,
                 $files ?? [],
                 $typeId ? DocumentType::query()->active()->find($typeId) : null,
             );

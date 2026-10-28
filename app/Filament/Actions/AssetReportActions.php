@@ -23,7 +23,6 @@ use App\Support\DisposalUrl;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
-use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -194,13 +193,13 @@ final class AssetReportActions
             ->modalSubmitActionLabel('Enregistrer le transfert')
             ->modalWidth('3xl')
             ->visible(fn (AssetReport $record): bool => self::can($record) && $record->type === ReportType::Move && (auth()->user()?->can('create', Movement::class) ?? false))
-            ->fillForm(function (AssetReport $record): array {
+            ->fillForm(function (AssetReport $record, $livewire): array {
                 $asset = $record->asset;
                 $departmentId = $record->reported_department_id ?? $asset?->department_id;
                 $roomId = $record->reported_room_id ?? $asset?->room_id;
                 $room = $roomId === null ? null : Room::query()->find($roomId);
 
-                return [
+                return OperationFields::held($livewire, [$record->asset_id => (int) $asset->lock_version], [
                     'site_id' => $room->site_id ?? $asset->site_id,
                     'department_id' => $departmentId,
                     'service_id' => $departmentId === $asset?->department_id ? $asset?->service_id : null,
@@ -208,11 +207,9 @@ final class AssetReportActions
                     'holder_id' => $asset?->holder_id,
                     'moved_on' => today()->toDateString(),
                     'reason' => 'Signalement '.$record->reference,
-                    'asset_version' => $asset?->lock_version,
-                ];
+                ]);
             })
             ->schema([
-                Hidden::make('asset_version'),
                 Select::make('site_id')->label('Site')->options(fn (): array => Site::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id')->all())->native(false)->required(),
                 Select::make('department_id')->label('Département')->options(fn (): array => Department::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id')->all())->native(false)->required(),
                 Select::make('service_id')->label('Service')->placeholder('Aucun')->options(fn (Get $get): array => Service::query()->where('is_active', true)->where('department_id', $get('department_id'))->orderBy('name')->pluck('name', 'id')->all())->native(false),
@@ -221,9 +218,8 @@ final class AssetReportActions
                 DatePicker::make('moved_on')->label('Date du transfert')->maxDate(today())->required(),
                 TextInput::make('reason')->label('Motif')->maxLength(255)->columnSpanFull(),
             ])
-            ->action(fn (array $data, AssetReport $record, Action $action) => self::run($action, 'Transfert impossible', function () use ($data, $record): void {
-                $version = filled($data['asset_version'] ?? null) ? (int) $data['asset_version'] : null;
-                unset($data['asset_version']);
+            ->action(fn (array $data, AssetReport $record, Action $action, $livewire) => self::run($action, 'Transfert impossible', function () use ($data, $record, $livewire): void {
+                $version = OperationFields::heldVersions($livewire, [$record->asset_id])[$record->asset_id];
 
                 app(ProcessAssetReport::class)->transfer($record, $data, $version);
                 Notification::make()->success()->title('Transfert enregistré, signalement traité')->send();
@@ -237,13 +233,12 @@ final class AssetReportActions
             ->icon(Heroicon::OutlinedCheckCircle)
             ->modalSubmitActionLabel('Mettre à jour l\'état du bien')
             ->visible(fn (AssetReport $record): bool => self::can($record) && $record->type === ReportType::Condition && (auth()->user()?->can('update', $record->asset ?? new Asset) ?? false))
-            ->fillForm(fn (AssetReport $record): array => ['condition_id' => $record->reported_condition_id, 'asset_version' => $record->asset?->lock_version])
+            ->fillForm(fn (AssetReport $record, $livewire): array => OperationFields::held($livewire, [$record->asset_id => (int) $record->asset?->lock_version], ['condition_id' => $record->reported_condition_id]))
             ->schema([
-                Hidden::make('asset_version'),
                 OperationFields::conditions('condition_id', 'Nouvel état du bien')->required(),
             ])
-            ->action(fn (array $data, AssetReport $record, Action $action) => self::run($action, 'Mise à jour impossible', function () use ($data, $record): void {
-                app(ProcessAssetReport::class)->updateCondition($record, (int) ($data['condition_id'] ?? 0), filled($data['asset_version'] ?? null) ? (int) $data['asset_version'] : null);
+            ->action(fn (array $data, AssetReport $record, Action $action, $livewire) => self::run($action, 'Mise à jour impossible', function () use ($data, $record, $livewire): void {
+                app(ProcessAssetReport::class)->updateCondition($record, (int) ($data['condition_id'] ?? 0), OperationFields::heldVersions($livewire, [$record->asset_id])[$record->asset_id]);
                 Notification::make()->success()->title('État mis à jour, signalement traité')->send();
             }));
     }
@@ -270,8 +265,8 @@ final class AssetReportActions
             ->icon(Heroicon::OutlinedCheckCircle)
             ->color('gray')
             ->requiresConfirmation()
-            ->modalDescription('À utiliser quand l\'opération a été faite hors de cet écran (sortie du patrimoine, par exemple).')
-            ->visible(fn (AssetReport $record): bool => self::can($record) && $record->status === ReportStatus::InProgress && $record->handled_ref_id === null)
+            ->modalDescription('Le bien est sorti du patrimoine : le signalement peut être clos.')
+            ->visible(fn (AssetReport $record): bool => self::can($record) && $record->status === ReportStatus::InProgress && $record->handled_ref_id === null && $record->asset?->isDisposed() === true)
             ->action(fn (AssetReport $record, Action $action) => self::run($action, 'Traitement impossible', function () use ($record): void {
                 app(ProcessAssetReport::class)->markHandled($record);
                 Notification::make()->success()->title('Signalement traité')->send();
@@ -285,7 +280,7 @@ final class AssetReportActions
             ->icon(Heroicon::OutlinedXCircle)
             ->color('danger')
             ->modalSubmitActionLabel('Rejeter le signalement')
-            ->visible(fn (AssetReport $record): bool => self::can($record))
+            ->visible(fn (AssetReport $record): bool => self::can($record) && $record->handled_ref_id === null)
             ->schema([
                 Textarea::make('rejection_reason')->label('Motif du rejet')->rows(3)->maxLength(2000)->required(),
             ])

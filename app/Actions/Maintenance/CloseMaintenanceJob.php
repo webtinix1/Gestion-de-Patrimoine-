@@ -107,8 +107,9 @@ class CloseMaintenanceJob
                 'condition_after_id' => $condition->getKey(),
                 'status_after' => $changeStatus ? $statusAfter : null,
                 'ends_on' => $endsOn->toDateString(),
-                'cost' => $cost ?? $current->cost,
-                'cost_reference' => $this->clean($data['cost_reference'] ?? null) ?? $current->cost_reference,
+                // QL8-6 : le coût de la fenêtre remplace celui du devis, y compris vidé ; absent, il est conservé.
+                'cost' => array_key_exists('cost', $data) ? $cost : $current->cost,
+                'cost_reference' => array_key_exists('cost_reference', $data) ? $this->clean($data['cost_reference']) : $current->cost_reference,
                 'notes' => $this->clean($data['notes'] ?? null) ?? $current->notes,
                 'status' => MaintenanceStatus::Done,
             ]);

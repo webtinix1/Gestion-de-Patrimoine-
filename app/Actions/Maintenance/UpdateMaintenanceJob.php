@@ -51,6 +51,10 @@ class UpdateMaintenanceJob
                 throw ValidationException::withMessages(['job' => 'Une intervention terminée n\'est plus modifiable.']);
             }
 
+            if ($current->status === MaintenanceStatus::Planned && ! $startsOn->isAfter(today())) {
+                throw ValidationException::withMessages(['starts_on' => 'Une intervention planifiée garde une date de début à venir : pour la commencer maintenant, utilisez « Démarrer l\'intervention ».']);
+            }
+
             if ($current->status === MaintenanceStatus::Ongoing && $startsOn->isAfter(today())) {
                 throw ValidationException::withMessages(['starts_on' => 'Une intervention en cours ne peut pas commencer dans le futur.']);
             }

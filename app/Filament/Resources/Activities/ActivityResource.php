@@ -8,6 +8,7 @@ use App\Models\Asset;
 use App\Models\Loan;
 use App\Models\Role;
 use App\Models\User;
+use App\Support\OperationLabels;
 use BackedEnum;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DatePicker;
@@ -204,7 +205,7 @@ class ActivityResource extends Resource
         return match (true) {
             $subject instanceof User => 'Utilisateur '.$subject->username,
             $subject instanceof Role => 'Rôle '.$subject->name,
-            default => class_basename($subject).' n° '.$subject->getKey(),
+            default => OperationLabels::for($subject),
         };
     }
 

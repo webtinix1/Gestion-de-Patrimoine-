@@ -132,6 +132,23 @@ it('attribue des références de prêt, d\'intervention et de signalement unique
     ]);
 })->with(['sqlite', 'mysql', 'mariadb']);
 
+it('un prêt et un passage En maintenance simultanés du même bien : une seule réussite (S2)', function (string $driver) {
+    $this->env = operationsEnv($driver) ?? $this->markTestSkipped("Aucune base {$driver} jetable indiquée (variables CONCURRENCE_DB_*).");
+    prepareOperationsDatabase($this->env, 1);
+
+    $results = operationsWaitAll([
+        ...array_map(fn () => operationsWorker($this->env, 'loan', 1), range(1, 3)),
+        ...array_map(fn () => operationsWorker($this->env, 'open', 1), range(1, 3)),
+    ]);
+
+    expect(array_values(array_filter($results, fn (string $line): bool => str_starts_with($line, 'OK '))))->toHaveCount(1, implode(' | ', $results))
+        ->and(array_filter($results, fn (string $line): bool => str_starts_with($line, 'ERREUR')))->toBe([], implode(' | ', $results));
+
+    $dump = operationsWaitAll([operationsWorker($this->env, 'dump')]);
+
+    expect($dump[0])->toBeIn(['ASSET 1 on_loan', 'ASSET 1 in_maintenance']);
+})->with(['sqlite', 'mysql', 'mariadb']);
+
 it('n\'ouvre qu\'une intervention à la fois sur un même bien, et ne rend un prêt qu\'une fois (RG-60, RG-56)', function (string $driver) {
     $this->env = operationsEnv($driver) ?? $this->markTestSkipped("Aucune base {$driver} jetable indiquée (variables CONCURRENCE_DB_*).");
     prepareOperationsDatabase($this->env, 2);

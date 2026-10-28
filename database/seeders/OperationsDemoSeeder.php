@@ -263,7 +263,7 @@ class OperationsDemoSeeder extends Seeder
             AssetReport::query()->whereKey($report->getKey())->update(['created_at' => $createdAt, 'updated_at' => $createdAt]);
 
             match ($number) {
-                25 => $process->updateCondition($report, (int) $report->reported_condition_id),
+                25 => $process->updateCondition($report, (int) $report->reported_condition_id, (int) $asset->fresh()->lock_version),
                 26 => $process->reject($report, 'Usure normale : à signaler de nouveau si la panne se répète.'),
                 27 => $process->linkOperation(
                     $report->getKey(),

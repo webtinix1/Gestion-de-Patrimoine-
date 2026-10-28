@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Maintenance\Pages;
 use App\Enums\MaintenanceResult;
 use App\Filament\Actions\MaintenanceJobActions;
 use App\Filament\Resources\Maintenance\MaintenanceResource;
+use App\Filament\Support\HoldsOperationVersions;
 use App\Models\MaintenanceJob;
 use App\Support\DisposalUrl;
 use Filament\Actions\Action;
@@ -15,6 +16,8 @@ use Illuminate\Contracts\Support\Htmlable;
 
 class ViewMaintenanceJob extends ViewRecord
 {
+    use HoldsOperationVersions;
+
     protected static string $resource = MaintenanceResource::class;
 
     public function getTitle(): string|Htmlable

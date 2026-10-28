@@ -73,7 +73,9 @@ class RecordLoanReturn
                 throw ValidationException::withMessages(['items' => 'Indiquez l\'état au retour de chaque bien du prêt.']);
             }
 
+            // Seuls les états actifs sont acceptés au retour.
             $conditions = AssetCondition::query()
+                ->where('is_active', true)
                 ->whereKey($input->pluck('condition_back_id')->filter()->unique()->all())
                 ->get()
                 ->keyBy('id');
@@ -142,7 +144,8 @@ class RecordLoanReturn
         // RG-57 : l'ordre des états est le champ « sort ».
         $degraded = $back->sort > (int) $item->conditionOut?->sort;
 
-        if ($degraded) {
+        // RG-57 (QL8-10) : l'état est aussi mis à jour si le retour est moins bon que l'état courant de la fiche.
+        if ($degraded || $back->sort > (int) $asset->condition?->sort) {
             $changes['asset_condition_id'] = $back->getKey();
         }
 

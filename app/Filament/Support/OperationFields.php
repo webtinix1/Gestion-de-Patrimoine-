@@ -119,6 +119,45 @@ final class OperationFields
         return $state instanceof BackedEnum ? $state->value : $state;
     }
 
+    /**
+     * Garde les versions à l'ouverture de la fenêtre et rend le tableau de remplissage.
+     *
+     * @param  array<int, int>  $versions
+     * @param  array<string, mixed>  $state
+     * @return array<string, mixed>
+     */
+    public static function held(object $livewire, array $versions, array $state): array
+    {
+        if (method_exists($livewire, 'holdVersions')) {
+            $livewire->holdVersions($versions, replace: true);
+        }
+
+        return $state;
+    }
+
+    /**
+     * Versions vues à l'ouverture, une par bien ; absentes, l'enregistrement est refusé (RG-86).
+     *
+     * @param  iterable<int|string>  $assetIds
+     * @return array<int, int>
+     */
+    public static function heldVersions(object $livewire, iterable $assetIds): array
+    {
+        $versions = [];
+
+        foreach ($assetIds as $id) {
+            $version = method_exists($livewire, 'heldVersion') ? $livewire->heldVersion((int) $id) : null;
+
+            if ($version === null) {
+                throw ValidationException::withMessages(['version' => 'La fiche n\'a pas été relue à l\'ouverture de la fenêtre : fermez-la et rouvrez-la.']);
+            }
+
+            $versions[(int) $id] = $version;
+        }
+
+        return $versions;
+    }
+
     public static function notifyFailure(string $title, Throwable $exception): void
     {
         $message = $exception instanceof ValidationException
