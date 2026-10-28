@@ -8,6 +8,7 @@ use App\Enums\FiscalYearStatus;
 use App\Models\Activity;
 use App\Models\DepreciationLine;
 use App\Models\FiscalYear;
+use App\Models\Inventory;
 use App\Models\User;
 use App\Services\FiscalYearClosing\FiscalYearAttentionPoints;
 use App\Support\DefaultRoles;
@@ -63,6 +64,12 @@ it('réserve la clôture à l\'administrateur et au comptable (RG-41, RG-83)', f
 });
 
 it('demande de confirmer les points d\'attention, sans les rendre bloquants (RG-42)', function () {
+    // Un inventaire non clôturé sur l'exercice suffit à demander une confirmation.
+    Inventory::query()->withoutGlobalScopes()->forceCreate([
+        'reference' => 'INV-2026-099', 'scope_type' => 'all', 'starts_on' => '2026-11-15',
+        'manager_id' => $this->manager->id, 'status' => 'planned',
+    ]);
+
     $points = app(FiscalYearAttentionPoints::class)->for($this->year2026);
     $keys = array_map(fn ($point) => $point->key, $points);
 
