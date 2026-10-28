@@ -151,6 +151,26 @@ class SyncDepreciationSchedule
     }
 
     /**
+     * RG-39 : plan que donnerait une sortie à cette date, calculé sans rien écrire (écran de sortie E26).
+     * Null pour un bien sans plan possible.
+     */
+    public function previewDisposal(Asset $asset, CarbonImmutable $disposedOn, FiscalYearCalendar $calendar): ?DepreciationPlan
+    {
+        if (! self::isEligible($asset)) {
+            return null;
+        }
+
+        $current = $this->currentSchedule($asset);
+        $simulated = (clone $asset)->setAttribute('disposed_at', $disposedOn->toDateString());
+
+        return $this->calculate(
+            $simulated,
+            $this->fixedLines($current === null ? collect() : $current->lines->keyBy('fiscal_year'), $calendar->firstRecalculableYear()),
+            $current?->recalculated_from_year,
+        );
+    }
+
+    /**
      * RG-36 : lignes figées (exercice clôturé ou antérieur au premier exercice recalculable).
      *
      * @param  Collection<int, DepreciationLine>  $existing

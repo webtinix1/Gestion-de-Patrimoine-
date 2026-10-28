@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Assets\Pages;
 
+use App\Filament\Actions\DisposeAction;
 use App\Filament\Actions\TransferAction;
 use App\Filament\Resources\Assets\AssetResource;
 use App\Filament\Support\LabelActions;
@@ -31,6 +32,7 @@ class ViewAsset extends ViewRecord
             TransferAction::single($asset),
             EditAction::make(),
             LabelActions::single(),
+            DisposeAction::make($asset),
         ];
     }
 }

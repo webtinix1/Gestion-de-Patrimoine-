@@ -41,6 +41,7 @@ class CloseFiscalYear
 
         $today ??= CarbonImmutable::today();
 
+        // Rejouée en cas d'interblocage avec une sortie du patrimoine (création de l'exercice suivant, lot 10).
         return DB::transaction(function () use ($fiscalYear, $user, $acknowledged, $today): FiscalYear {
             $current = FiscalYear::query()->lockForUpdate()->findOrFail($fiscalYear->getKey());
 
@@ -124,6 +125,6 @@ class CloseFiscalYear
             $fiscalYear->setRawAttributes($current->getAttributes(), sync: true);
 
             return $fiscalYear;
-        });
+        }, attempts: 3);
     }
 }

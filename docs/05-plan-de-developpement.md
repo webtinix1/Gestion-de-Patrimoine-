@@ -85,9 +85,9 @@ Sites, départements (multi-sites), services, locaux, catégories (préfixe, rè
 
 ## Lot 10. Sorties du patrimoine (1 j) · E26, E27, E43 · RG-50 à RG-54, RG-39
 
-- [ ] Sortie par motif, confirmation par saisie du numéro, impossible à annuler.
-- [ ] Amortissement arrêté à la date de sortie et valeurs figées (A5).
-- [ ] Validation comptable ; fiche du bien sorti en lecture seule.
+- [x] Sortie par motif, confirmation par saisie du numéro, impossible à annuler. *Refusée pour un bien emprunté ou en maintenance (QL10-1) et dans un exercice clôturé (Q9.12, QL10-3) ; double sortie simultanée testée en processus parallèles sur SQLite et MariaDB.*
+- [x] Amortissement arrêté à la date de sortie et valeurs figées (A5). *Testé de bout en bout et sur la démonstration (PAT-000034).*
+- [x] Validation comptable ; fiche du bien sorti en lecture seule. *Point d'attention « sorties non validées » branché dans la clôture (RG-42).*
 
 ## Lot 11. Tableau de bord, alertes, rapports, espace responsable (2 j) · E02, E03, E29, E42, E45 · RG-90, RG-91
 

@@ -32,13 +32,32 @@ enum DisposalReason: string implements HasColor, HasLabel
     public function getColor(): string
     {
         return match ($this) {
-            self::Sale => 'gray',
-            self::Donation => 'gray',
-            self::Retirement => 'gray',
-            self::Destruction => 'gray',
-            self::Loss => 'gray',
-            self::Theft => 'gray',
-            self::Other => 'gray',
+            self::Sale => 'primary',
+            self::Donation => 'info',
+            self::Retirement, self::Destruction, self::Other => 'gray',
+            self::Loss, self::Theft => 'danger',
         };
+    }
+
+    // RG-52 : Cédé pour une cession ou un don, Réformé pour les autres motifs.
+    public function resultingStatus(): AssetStatus
+    {
+        return in_array($this, [self::Sale, self::Donation], true) ? AssetStatus::TransferredOut : AssetStatus::Retired;
+    }
+
+    // RG-51 : acquéreur et prix pour une cession ; bénéficiaire pour un don.
+    public function requiresCounterparty(): bool
+    {
+        return in_array($this, [self::Sale, self::Donation], true);
+    }
+
+    public function requiresPrice(): bool
+    {
+        return $this === self::Sale;
+    }
+
+    public function counterpartyLabel(): string
+    {
+        return $this === self::Donation ? 'Bénéficiaire du don' : 'Acquéreur';
     }
 }

@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Support\Carbon;
 use LogicException;
@@ -78,6 +79,12 @@ class Asset extends Model
         static::updating(function (Asset $asset): void {
             if ($asset->isDirty('number')) {
                 throw new LogicException('Le numéro patrimonial ne peut pas être modifié.');
+            }
+
+            // RG-52, RG-53 : une fiche sortie est en lecture seule et sa sortie ne s'annule pas, par aucun chemin.
+            if ($asset->getOriginal('disposed_at') !== null
+                && array_diff(array_keys($asset->getDirty()), ['updated_at', 'updated_by', 'lock_version']) !== []) {
+                throw new LogicException('Un bien sorti du patrimoine est en lecture seule : sa fiche ne peut plus être modifiée.');
             }
 
             // RG-86 : toute modification, quelle que soit l'opération, change la version de la fiche.
@@ -196,6 +203,16 @@ class Asset extends Model
     public function movements(): HasMany
     {
         return $this->hasMany(Movement::class);
+    }
+
+    /**
+     * RG-50 : sortie du patrimoine (une au plus).
+     *
+     * @return HasOne<Disposal, $this>
+     */
+    public function disposal(): HasOne
+    {
+        return $this->hasOne(Disposal::class);
     }
 
     /**

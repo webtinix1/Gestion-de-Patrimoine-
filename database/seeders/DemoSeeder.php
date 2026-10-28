@@ -37,6 +37,7 @@ class DemoSeeder extends Seeder
             AssetsDemoSeeder::class,
             MovementsDemoSeeder::class,
             DepreciationDemoSeeder::class,
+            DisposalsDemoSeeder::class,
             AcquisitionsDemoSeeder::class,
             InventoriesDemoSeeder::class,
         ]);

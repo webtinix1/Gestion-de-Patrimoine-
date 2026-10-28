@@ -8,7 +8,6 @@ use App\Models\User;
 use App\Support\Money;
 use Filament\Infolists\Components\ImageEntry;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Schemas\Components\Callout;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Tabs;
@@ -28,10 +27,8 @@ class AssetInfolist
         return $schema
             ->columns(1)
             ->components([
-                Callout::make('Sorti du patrimoine')
-                    ->description(fn (Asset $record): string => 'Ce bien est sorti du patrimoine le '.$record->disposed_at?->format('d/m/Y').'. Sa fiche est consultable en lecture seule.')
-                    ->danger()
-                    ->visible(fn (Asset $record): bool => $record->isDisposed()),
+                AssetDisposalSection::banner(),
+                AssetDisposalSection::section(),
                 Section::make()
                     ->columns(4)
                     ->schema([
