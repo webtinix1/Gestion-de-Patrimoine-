@@ -295,3 +295,66 @@ it('signale un planificateur arrêté', function () {
     app(RefreshAlerts::class)();
     expect(app(ServerStatus::class)->scheduler()['status'])->toBe('ok');
 });
+
+it('n\'écrase pas le réglage d\'un autre administrateur : seuls les champs modifiés partent (mise à jour perdue)', function () {
+    $other = User::factory()->role(DefaultRoles::ADMIN)->create();
+
+    $this->actingAs($this->admin);
+    $pageA = livewire(SettingsPage::class);
+    $this->actingAs($other);
+    $pageB = livewire(SettingsPage::class);
+
+    $this->actingAs($this->admin);
+    $pageA->fillForm([Settings::CHURCH_ACRONYM => 'AAA'])->callAction('save');
+
+    $this->actingAs($other);
+    $pageB->fillForm([Settings::ALERT_LOAN_DUE_DAYS => 9])->callAction('save');
+
+    expect(app(Settings::class)->string(Settings::CHURCH_ACRONYM))->toBe('AAA')
+        ->and(app(Settings::class)->int(Settings::ALERT_LOAN_DUE_DAYS))->toBe(9);
+
+    $last = Activity::query()->where('log_name', 'parametres')->latest('id')->first();
+    expect($last->causer_id)->toBe($other->id)->and(array_keys($last->properties['attributes']))->toBe([Settings::ALERT_LOAN_DUE_DAYS]);
+});
+
+it('refuse de modifier un réglage changé par un autre administrateur depuis le chargement', function () {
+    $this->actingAs($this->admin);
+    $stale = livewire(SettingsPage::class);
+
+    saveSettings([Settings::CHURCH_ACRONYM => 'AAA']);
+
+    $stale->fillForm([Settings::CHURCH_ACRONYM => 'BBB'])->callAction('save');
+    expect(app(Settings::class)->string(Settings::CHURCH_ACRONYM))->toBe('AAA');
+
+    $errors = settingErrorsWithOriginal([Settings::CHURCH_ACRONYM => 'BBB'], [Settings::CHURCH_ACRONYM => '[SIGLE]']);
+    expect($errors)->toHaveKey(Settings::CHURCH_ACRONYM);
+});
+
+it('ramène un SESSION_LIFETIME du .env hors bornes dans les bornes sans bloquer l\'écran', function () {
+    $this->actingAs($this->admin);
+
+    foreach ([600 => 480, 2 => 5] as $env => $shown) {
+        config(['session.lifetime' => $env]);
+
+        expect(app(UpdateSettings::class)->current(Settings::SESSION_LIFETIME_MINUTES))->toBe($shown);
+
+        livewire(SettingsPage::class)
+            ->assertFormSet([Settings::SESSION_LIFETIME_MINUTES => $shown])
+            ->fillForm([Settings::CHURCH_ACRONYM => 'S'.$env])
+            ->callAction('save')
+            ->assertHasNoFormErrors();
+
+        expect(app(Settings::class)->string(Settings::CHURCH_ACRONYM))->toBe('S'.$env);
+    }
+});
+
+function settingErrorsWithOriginal(array $data, array $original): array
+{
+    try {
+        app(UpdateSettings::class)($data, $original);
+    } catch (ValidationException $exception) {
+        return $exception->errors();
+    }
+
+    return [];
+}

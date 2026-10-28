@@ -30,6 +30,7 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
+use Livewire\Attributes\Locked;
 use UnitEnum;
 
 /**
@@ -60,6 +61,16 @@ class SettingsPage extends Page implements HasSchemas
     /** @var array<string, mixed> */
     public array $data = [];
 
+    /**
+     * Valeurs chargées à l'ouverture : seuls les champs modifiés sont envoyés à l'Action, qui refuse si un autre administrateur les a changés entre-temps.
+     *
+     * @var array<string, mixed>
+     */
+    #[Locked]
+    public array $initial = [];
+
+    private ?bool $numberingLocked = null;
+
     public static function canAccess(): bool
     {
         return Gate::allows('viewAny', Setting::class);
@@ -68,6 +79,12 @@ class SettingsPage extends Page implements HasSchemas
     public function mount(): void
     {
         $update = app(UpdateSettings::class);
+
+        $this->initial = [];
+
+        foreach (UpdateSettings::KEYS as $key) {
+            $this->initial[$key] = $update->current($key);
+        }
 
         $this->form->fill([
             Settings::CHURCH_NAME => $update->current(Settings::CHURCH_NAME),
@@ -85,7 +102,7 @@ class SettingsPage extends Page implements HasSchemas
 
     public function form(Schema $schema): Schema
     {
-        $locked = fn (): bool => UpdateSettings::numberingLocked();
+        $locked = fn (): bool => $this->numberingLocked ??= UpdateSettings::numberingLocked();
         $update = app(UpdateSettings::class);
         // Une valeur déjà enregistrée au-dessus de la limite de PHP reste affichable : seule une valeur plus haute est refusée.
         $maxMb = intdiv(max($update->documentMaxKb(), (int) $update->current(Settings::DOCUMENT_MAX_SIZE_KB)), 1024);
@@ -193,8 +210,16 @@ class SettingsPage extends Page implements HasSchemas
                     $state[Settings::DOCUMENT_MAX_SIZE_KB] = is_numeric($state['document_max_size_mb'] ?? null) ? (int) $state['document_max_size_mb'] * 1024 : null;
                     unset($state['document_max_size_mb']);
 
+                    $changed = array_filter($state, fn (mixed $value, string $key): bool => (string) $value !== (string) ($this->initial[$key] ?? ''), ARRAY_FILTER_USE_BOTH);
+
+                    if ($changed === []) {
+                        Notification::make()->title('Aucune modification à enregistrer')->send();
+
+                        return;
+                    }
+
                     try {
-                        app(UpdateSettings::class)($state);
+                        app(UpdateSettings::class)($changed, $this->initial);
                     } catch (ValidationException $exception) {
                         Notification::make()->title('Paramètres non enregistrés')->body(collect($exception->errors())->flatten()->implode(' '))->danger()->send();
 

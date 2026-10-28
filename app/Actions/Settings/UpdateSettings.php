@@ -40,6 +40,15 @@ class UpdateSettings
 
     public const int ACRONYM_MAX = 12;
 
+    /**
+     * @var list<string>
+     */
+    public const array KEYS = [
+        Settings::CHURCH_NAME, Settings::CHURCH_ACRONYM, Settings::NUMBER_FORMAT, Settings::NUMBER_PREFIX,
+        Settings::ALERT_LOAN_DUE_DAYS, Settings::ALERT_MAINTENANCE_DAYS, Settings::ALERT_INVENTORY_DAYS, Settings::ALERT_DEPRECIATION_MONTHS,
+        Settings::SESSION_LIFETIME_MINUTES, Settings::DOCUMENT_MAX_SIZE_KB,
+    ];
+
     public function __construct(private Settings $settings, private EnvironmentCheck $environment) {}
 
     /**
@@ -57,7 +66,8 @@ class UpdateSettings
     public function current(string $key): mixed
     {
         if ($key === Settings::SESSION_LIFETIME_MINUTES && ! $this->settings->has($key)) {
-            return (int) config('session.lifetime');
+            // Un SESSION_LIFETIME du .env hors bornes est ramené dans les bornes pour l'affichage et la validation.
+            return max(ApplySessionLifetime::MIN_MINUTES, min(ApplySessionLifetime::MAX_MINUTES, (int) config('session.lifetime')));
         }
 
         return $this->settings->get($key);
@@ -72,12 +82,28 @@ class UpdateSettings
     }
 
     /**
-     * @param  array<string, mixed>  $data
+     * @param  array<string, mixed>  $data  valeurs à enregistrer (seules les clés présentes sont modifiées)
+     * @param  array<string, mixed>  $original  valeurs chargées par l'écran : si l'une a changé depuis (autre administrateur), l'enregistrement est refusé
      */
-    public function __invoke(array $data): void
+    public function __invoke(array $data, array $original = []): void
     {
         Gate::authorize('update', Setting::class);
 
+        // Verrou sur les compteurs de numéros : le test « des biens existent » et l'écriture du format ne se croisent pas avec une création de bien.
+        DB::transaction(function () use ($data, $original): void {
+            DB::table('asset_number_sequences')->lockForUpdate()->get();
+            $this->settings->refresh();
+
+            $this->apply($data, $original);
+        });
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @param  array<string, mixed>  $original
+     */
+    private function apply(array $data, array $original): void
+    {
         $values = [];
         $errors = [];
 
@@ -113,6 +139,18 @@ class UpdateSettings
 
         if ($errors !== []) {
             throw ValidationException::withMessages($errors);
+        }
+
+        $conflicts = [];
+
+        foreach ($values as $key => $value) {
+            if (array_key_exists($key, $original) && $original[$key] !== $this->current($key) && $this->current($key) !== $value) {
+                $conflicts[$key] = 'Ce réglage a été modifié par un autre administrateur depuis l\'ouverture de l\'écran. Rechargez la page avant de le changer.';
+            }
+        }
+
+        if ($conflicts !== []) {
+            throw ValidationException::withMessages($conflicts);
         }
 
         $old = [];

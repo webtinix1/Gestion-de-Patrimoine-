@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Http\Middleware\ApplySessionLifetime;
 use App\Models\Setting;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Paramètres de l'application (table settings), avec les valeurs par défaut de docs/06
@@ -111,11 +113,21 @@ class Settings
         $this->cache = null;
     }
 
+    public function refresh(): void
+    {
+        $this->cache = null;
+    }
+
     public function set(string $key, mixed $value): void
     {
         Setting::query()->updateOrCreate(['key' => $key], ['value' => $value, 'updated_by' => auth()->id()]);
 
         $this->cache = null;
+
+        // La durée de session est lue par un middleware via un cache court (ApplySessionLifetime).
+        if ($key === self::SESSION_LIFETIME_MINUTES) {
+            Cache::forget(ApplySessionLifetime::CACHE_KEY);
+        }
     }
 
     public function string(string $key): string

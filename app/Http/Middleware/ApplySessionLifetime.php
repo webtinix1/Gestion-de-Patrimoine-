@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Services\Settings;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
@@ -19,17 +20,22 @@ class ApplySessionLifetime
 
     public const int MAX_MINUTES = 480;
 
+    public const string CACHE_KEY = 'settings.session_lifetime_minutes';
+
+    public const int CACHE_SECONDS = 60;
+
     public function handle(Request $request, Closure $next): Response
     {
         try {
-            $settings = app(Settings::class);
+            // 0 : aucune valeur enregistrée. Cache court, vidé par Settings::set, pour ne pas interroger la base à chaque requête.
+            $minutes = (int) Cache::remember(self::CACHE_KEY, self::CACHE_SECONDS, function (): int {
+                $settings = app(Settings::class);
 
-            if ($settings->has(Settings::SESSION_LIFETIME_MINUTES)) {
-                $minutes = $settings->int(Settings::SESSION_LIFETIME_MINUTES);
+                return $settings->has(Settings::SESSION_LIFETIME_MINUTES) ? $settings->int(Settings::SESSION_LIFETIME_MINUTES) : 0;
+            });
 
-                if ($minutes >= self::MIN_MINUTES && $minutes <= self::MAX_MINUTES) {
-                    config(['session.lifetime' => $minutes]);
-                }
+            if ($minutes >= self::MIN_MINUTES && $minutes <= self::MAX_MINUTES) {
+                config(['session.lifetime' => $minutes]);
             }
         } catch (Throwable) {
             // Base injoignable ou pas encore migrée (installation) : la valeur du fichier .env reste en vigueur.

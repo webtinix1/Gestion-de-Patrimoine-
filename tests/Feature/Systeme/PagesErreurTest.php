@@ -64,10 +64,31 @@ it('affiche sur la page 403 le message métier en français, sans lire la base n
         ->assertForbidden()
         ->assertSee('Seul le comptable peut valider cette sortie.');
 
-    // Seule exception : ApplySessionLifetime (E41) lit la durée d'inactivité avant le démarrage de la session ; elle retombe sur .env si la base est injoignable.
-    $queries = array_values(array_filter(DB::getQueryLog(), fn (array $log): bool => ! str_contains((string) $log['query'], 'settings')));
+    // Seule requête admise : celle de ApplySessionLifetime (E41), qui lit la durée d'inactivité avant le démarrage de la session.
+    $queries = DB::getQueryLog();
 
-    expect($queries)->toBe([]);
+    expect(count($queries))->toBeLessThanOrEqual(1);
+
+    if ($queries !== []) {
+        expect((string) $queries[0]['query'])->toContain('settings');
+    }
+});
+
+it('affiche quand même la page 403 en français quand la base est injoignable', function () {
+    $default = config('database.default');
+    config([
+        'database.connections.injoignable' => ['driver' => 'sqlite', 'database' => storage_path('inexistant/absent.sqlite'), 'prefix' => '', 'foreign_key_constraints' => false],
+        'database.default' => 'injoignable',
+    ]);
+
+    try {
+        $this->get('/_t/403-message')
+            ->assertForbidden()
+            ->assertSee('Seul le comptable peut valider cette sortie.');
+    } finally {
+        config(['database.default' => $default]);
+        DB::purge('injoignable');
+    }
 });
 
 it('n\'affiche pas « Invalid signature. » ni un autre message anglais sur la page 403', function () {
