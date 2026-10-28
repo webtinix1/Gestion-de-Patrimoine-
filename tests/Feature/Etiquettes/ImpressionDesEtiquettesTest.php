@@ -183,3 +183,46 @@ it('n\'offre pas l\'étiquette d\'un bien sorti du patrimoine', function () {
     livewire(ViewAsset::class, ['record' => $disposed->getRouteKey()])
         ->assertActionHidden('printLabel');
 });
+
+it('ne plante pas quand le navigateur envoie des identifiants qui ne sont pas des entiers', function () {
+    $first = $this->assets[0]->id;
+
+    livewire(LabelPrinting::class)
+        ->set('assetIds', ['abc', 'x1', (string) $first, 0, -2, [3], null, $first])
+        ->assertHasNoErrors()
+        ->assertSet('assetIds', [$first])
+        ->assertOk();
+});
+
+it('ne laisse pas injecter un bien hors périmètre par Livewire', function () {
+    $louange = Department::factory()->create();
+    $own = Asset::factory()->create(['department_id' => $louange->id]);
+    $other = Asset::factory()->create();
+
+    $limited = User::factory()->role(DefaultRoles::MANAGER)->create();
+    $limited->departments()->attach($louange);
+    $this->actingAs($limited);
+
+    livewire(LabelPrinting::class)
+        ->set('assetIds', [$other->id, $own->id])
+        ->assertSet('assetIds', [$own->id]);
+});
+
+it('compte dans la notification les identifiants de l\'adresse qui n\'ont pas été retenus', function () {
+    $first = $this->assets[0]->id;
+
+    Livewire::withQueryParams(['biens' => "{$first},abc,999999,{$first}"])->test(LabelPrinting::class)
+        ->assertSet('assetIds', [$first])
+        ->assertNotified('3 biens n\'ont pas été retenus');
+});
+
+it('montre une erreur claire à l\'aperçu quand le code-barres ne tient pas sur le rouleau', function () {
+    $asset = Asset::factory()->create(['number' => 'AUD-2026-0000125-AB']);
+
+    $component = Livewire::withQueryParams(['biens' => (string) $asset->id])->test(LabelPrinting::class)
+        ->fillForm(['support' => 'roll']);
+
+    expect($component->instance()->preview())->toBeNull();
+
+    $component->assertSee('ne tient pas');
+});

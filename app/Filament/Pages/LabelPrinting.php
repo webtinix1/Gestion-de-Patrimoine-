@@ -67,6 +67,8 @@ class LabelPrinting extends Page implements HasSchemas
     /** @var list<int> */
     public array $assetIds = [];
 
+    protected ?string $previewError = null;
+
     public static function canAccess(): bool
     {
         return Gate::allows('viewAny', LabelTemplate::class);
@@ -81,12 +83,14 @@ class LabelPrinting extends Page implements HasSchemas
             'copies' => 1,
         ]);
 
-        $requested = $this->requestedIds((string) request()->query('biens', ''));
+        $raw = (string) request()->query('biens', '');
+        $tokens = count(array_filter(array_map('trim', explode(',', $raw)), fn (string $token): bool => $token !== ''));
+        $requested = $this->requestedIds($raw);
 
-        if ($requested !== []) {
-            $this->assetIds = $this->visibleIds($requested);
+        if ($tokens > 0) {
+            $this->assetIds = array_slice($this->visibleIds($requested), 0, PrintLabels::MAX_LABELS);
 
-            $ignored = count($requested) - count($this->assetIds);
+            $ignored = $tokens - count($this->assetIds);
 
             if ($ignored > 0) {
                 Notification::make()
@@ -228,6 +232,31 @@ class LabelPrinting extends Page implements HasSchemas
         );
     }
 
+    /**
+     * Le navigateur peut envoyer n'importe quoi : on ne garde que des identifiants entiers de biens visibles.
+     */
+    public function updatedAssetIds(): void
+    {
+        $this->assetIds = array_slice($this->visibleIds($this->integerIds($this->assetIds)), 0, PrintLabels::MAX_LABELS);
+    }
+
+    /**
+     * @param  array<mixed>  $raw
+     * @return list<int>
+     */
+    private function integerIds(array $raw): array
+    {
+        $ids = [];
+
+        foreach ($raw as $id) {
+            if ((is_int($id) || (is_string($id) && ctype_digit($id))) && (int) $id > 0) {
+                $ids[] = (int) $id;
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
+
     public function addByNumber(): void
     {
         $number = mb_strtoupper(trim((string) ($this->data['scan'] ?? '')));
@@ -344,6 +373,8 @@ class LabelPrinting extends Page implements HasSchemas
      */
     public function preview(): ?array
     {
+        $this->previewError = null;
+
         $template = $this->template();
         $assets = $this->selectedAssets();
 
@@ -374,7 +405,14 @@ class LabelPrinting extends Page implements HasSchemas
         $limit = $template->sheet_layout->isSheet() ? $perPage * self::PREVIEW_PAGES - ($start - 1) : 8;
         $shown = min($total, max(1, $limit));
 
-        $pages = $builder->pages($template, array_slice($labels, 0, $shown), $start, vector: true);
+        try {
+            $pages = $builder->pages($template, array_slice($labels, 0, $shown), $start, vector: true);
+        } catch (DomainException $exception) {
+            $this->previewError = $exception->getMessage();
+
+            return null;
+        }
+
         [$width, $height] = $builder->pageSize($template);
 
         $info = $template->sheet_layout->isSheet()
@@ -382,6 +420,11 @@ class LabelPrinting extends Page implements HasSchemas
             : $total.' étiquette'.($total > 1 ? 's' : '').' '.$template->summary();
 
         return ['pages' => $pages, 'width' => $width, 'height' => $height, 'total' => $total, 'shown' => $shown, 'info' => $info];
+    }
+
+    public function previewError(): ?string
+    {
+        return $this->previewError;
     }
 
     public function tooBig(): bool
@@ -421,7 +464,6 @@ class LabelPrinting extends Page implements HasSchemas
             ->filter(fn (string $id): bool => ctype_digit($id) && (int) $id > 0)
             ->map(fn (string $id): int => (int) $id)
             ->unique()
-            ->take(PrintLabels::MAX_LABELS)
             ->values()
             ->all();
     }

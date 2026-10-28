@@ -5,6 +5,7 @@ use App\Enums\LabelSheetLayout;
 use App\Models\Asset;
 use App\Models\LabelTemplate;
 use App\Models\User;
+use App\Services\Labels\LabelComposer;
 use App\Services\Labels\LabelSheetBuilder;
 use App\Support\DefaultRoles;
 use App\Support\Labels\LabelContent;
@@ -90,7 +91,9 @@ it('vérifie qu\'un modèle tient sur son support', function () {
 });
 
 it('génère un PDF A4 dont chaque code est posé à la case prévue, à l\'échelle exacte', function () {
-    $assets = Asset::factory()->count(3)->create();
+    $assets = Asset::factory()->count(3)->sequence(
+        ['number' => 'PAT-000501'], ['number' => 'PAT-000502'], ['number' => 'PAT-000503'],
+    )->create();
 
     $printed = app(PrintLabels::class)($this->sheet, $assets->pluck('id')->all(), startCell: 5);
     $pdf = new PdfInspector($printed->pdf);
@@ -105,21 +108,44 @@ it('génère un PDF A4 dont chaque code est posé à la case prévue, à l\'éch
 
     expect($images)->toHaveCount(3);
 
-    // Cases 5, 6 et 7 : colonnes 2, 3 puis 1 de la deuxième, deuxième puis troisième ligne.
-    $expectedOrigins = [[70.0, 37.5], [140.0, 37.5], [0.0, 74.5]];
-    $qr = app(LabelSheetBuilder::class)->pages($this->sheet, labelContents(1))[0][0]->label->code;
+    // Cases 5, 6 et 7. Le QR (29,4 mm) est à 1 mm du bord gauche et centré en hauteur dans la case de 37 mm.
+    $origins = [[70.0, 37.5], [140.0, 37.5], [0.0, 74.5]];
 
     foreach ($images as $index => $image) {
-        expect($image['w'])->toEqualWithDelta($qr->widthMm, 0.05)
-            ->and($image['h'])->toEqualWithDelta($qr->heightMm, 0.05)
-            ->and($image['x'])->toEqualWithDelta($expectedOrigins[$index][0] + 2.0, 0.05)
-            ->and($image['y'])->toBeGreaterThanOrEqual($expectedOrigins[$index][1])
-            ->and($image['y'] + $image['h'])->toBeLessThanOrEqual($expectedOrigins[$index][1] + 37.0 + 0.05);
+        expect($image['w'])->toEqualWithDelta(29.4, 0.05)
+            ->and($image['h'])->toEqualWithDelta(29.4, 0.05)
+            ->and($image['x'])->toEqualWithDelta($origins[$index][0] + 1.0, 0.05)
+            ->and($image['y'])->toEqualWithDelta($origins[$index][1] + 3.8, 0.05);
     }
+
+    $numbers = array_values(array_filter($pdf->texts(), fn (string $text): bool => str_starts_with($text, 'PAT-')));
+
+    expect($numbers)->toBe(['PAT-000501', 'PAT-000502', 'PAT-000503']);
 });
 
-it('génère un PDF de rouleau dont chaque page fait exactement 50 × 25 mm', function () {
+it('met la 25e étiquette en haut à gauche de la deuxième planche (case 24 + 1)', function () {
     $assets = Asset::factory()->count(2)->create();
+
+    $printed = app(PrintLabels::class)($this->sheet, $assets->pluck('id')->all(), startCell: 24);
+    $pdf = new PdfInspector($printed->pdf);
+    $pages = $pdf->imagesByPage();
+
+    expect($printed->pageCount)->toBe(2)
+        ->and($pdf->pageSizesMm())->toBe([[210.0, 297.0], [210.0, 297.0]])
+        ->and($pages[0])->toHaveCount(1)
+        ->and($pages[0][0]['x'])->toEqualWithDelta(141.0, 0.05)
+        ->and($pages[0][0]['y'])->toEqualWithDelta(259.5 + 3.8, 0.05)
+        ->and($pages[1])->toHaveCount(1)
+        ->and($pages[1][0]['x'])->toEqualWithDelta(1.0, 0.05)
+        ->and($pages[1][0]['y'])->toEqualWithDelta(0.5 + 3.8, 0.05);
+});
+
+it('refuse une case de départ hors de la planche dans l\'action, avec un message clair', function (int $cell) {
+    app(PrintLabels::class)($this->sheet, [Asset::factory()->create()->id], startCell: $cell);
+})->with([0, 25, 99])->throws(DomainException::class, 'entre 1 et 24');
+
+it('génère un PDF de rouleau dont chaque page fait exactement 50 × 25 mm', function () {
+    $assets = Asset::factory()->count(2)->sequence(['number' => 'PAT-000501'], ['number' => 'PAT-000502'])->create();
 
     $printed = app(PrintLabels::class)($this->roll, $assets->pluck('id')->all());
     $pdf = new PdfInspector($printed->pdf);
@@ -128,27 +154,52 @@ it('génère un PDF de rouleau dont chaque page fait exactement 50 × 25 mm', fu
         ->and($pdf->pageCount())->toBe(2)
         ->and($pdf->pageSizesMm())->toBe([[50.0, 25.0], [50.0, 25.0]]);
 
+    // Code 128 de 123 modules de 0,25 mm = 30,75 mm, centré, 9 mm de haut, à 2 mm du bas.
     foreach ($pdf->imagesByPage() as $images) {
         expect($images)->toHaveCount(1)
-            ->and($images[0]['x'])->toBeGreaterThanOrEqual(2.0 - 0.05)
-            ->and($images[0]['x'] + $images[0]['w'])->toBeLessThanOrEqual(48.05)
-            ->and($images[0]['y'] + $images[0]['h'])->toEqualWithDelta(23.0, 0.05);
+            ->and($images[0]['w'])->toEqualWithDelta(30.75, 0.05)
+            ->and($images[0]['h'])->toEqualWithDelta(9.0, 0.05)
+            ->and($images[0]['x'])->toEqualWithDelta(9.625, 0.05)
+            ->and($images[0]['y'])->toEqualWithDelta(14.0, 0.05);
     }
+
+    $numbers = array_values(array_filter($pdf->texts(), fn (string $text): bool => str_starts_with($text, 'PAT-')));
+
+    expect($numbers)->toBe(['PAT-000501', 'PAT-000502']);
 });
 
-it('imprime autant d\'étiquettes que de copies demandées, et plusieurs planches si besoin', function () {
+it('imprime autant d\'étiquettes que de copies demandées, sur plusieurs planches si besoin', function () {
     $assets = Asset::factory()->count(13)->create();
 
     $printed = app(PrintLabels::class)($this->sheet, $assets->pluck('id')->all(), copies: 2);
     $pdf = new PdfInspector($printed->pdf);
+    $pages = $pdf->imagesByPage();
 
     expect($printed->labelCount)->toBe(26)
         ->and($printed->pageCount)->toBe(2)
         ->and($pdf->pageCount())->toBe(2)
         ->and($pdf->pageSizesMm())->toBe([[210.0, 297.0], [210.0, 297.0]])
-        ->and($pdf->imagesByPage()[0])->toHaveCount(24)
-        ->and($pdf->imagesByPage()[1])->toHaveCount(2);
+        ->and($pages[0])->toHaveCount(24)
+        ->and($pages[1])->toHaveCount(2)
+        ->and($pages[1][0]['x'])->toEqualWithDelta(1.0, 0.05)
+        ->and($pages[1][1]['x'])->toEqualWithDelta(71.0, 0.05)
+        ->and($pages[1][1]['y'])->toEqualWithDelta(0.5 + 3.8, 0.05);
 });
+
+it('imprime en entier un numéro de 15 caractères sur la planche, le rouleau QR et le plus petit modèle accepté', function (string $name, array $state) {
+    $template = LabelTemplate::factory()->create(['name' => $name, ...$state]);
+    $asset = Asset::factory()->create(['number' => 'PAT-2026-000125']);
+
+    app(LabelComposer::class)->assertCanPrint($template);
+
+    $pdf = new PdfInspector(app(PrintLabels::class)($template, [$asset->id])->pdf);
+
+    expect($pdf->texts())->toContain('PAT-2026-000125');
+})->with([
+    'planche 70 × 37 QR' => ['Standard long', []],
+    'rouleau 50 × 25 QR' => ['Rouleau long', ['width_mm' => 50, 'height_mm' => 25, 'sheet_layout' => LabelSheetLayout::Roll]],
+    'plus petit modèle accepté 40 × 20' => ['Petit', ['width_mm' => 40, 'height_mm' => 20, 'sheet_layout' => LabelSheetLayout::Roll]],
+]);
 
 it('refuse un modèle qui dépasse la page', function () {
     $tooWide = LabelTemplate::factory()->create(['width_mm' => 80]);
@@ -161,8 +212,38 @@ it('refuse une impression sans bien', function () {
     app(PrintLabels::class)($this->sheet, []);
 })->throws(DomainException::class, 'Aucun bien');
 
-it('refuse plus de 500 étiquettes d\'un coup', function () {
-    $asset = Asset::factory()->create();
+it('refuse plus de 500 étiquettes d\'un coup, avant de produire le PDF', function () {
+    $assets = Asset::factory()->count(11)->create();
 
-    app(PrintLabels::class)($this->sheet, Asset::factory()->count(11)->create()->pluck('id')->all(), copies: 50);
+    app(PrintLabels::class)($this->sheet, $assets->pluck('id')->all(), copies: 50);
 })->throws(DomainException::class, 'Trop d\'étiquettes');
+
+it('produit 500 étiquettes en moins de 60 secondes (poste de développement)', function () {
+    $assets = Asset::factory()->count(10)->create();
+
+    $start = microtime(true);
+    $printed = app(PrintLabels::class)($this->sheet, $assets->pluck('id')->all(), copies: 50);
+    $seconds = microtime(true) - $start;
+
+    fwrite(STDERR, sprintf("\n[durée 10 biens × 50 copies, planche QR : %.1f s, pic mémoire %.0f Mo]\n", $seconds, memory_get_peak_usage(true) / 1048576));
+
+    expect($printed->labelCount)->toBe(500)->and($seconds)->toBeLessThan(60.0);
+});
+
+it('produit 200 étiquettes de rouleau (la limite) en moins de 60 secondes', function () {
+    $assets = Asset::factory()->count(4)->create();
+
+    $start = microtime(true);
+    $printed = app(PrintLabels::class)($this->roll, $assets->pluck('id')->all(), copies: 50);
+    $seconds = microtime(true) - $start;
+
+    fwrite(STDERR, sprintf("\n[durée 4 biens × 50 copies, rouleau Code 128 : %.1f s, pic mémoire %.0f Mo]\n", $seconds, memory_get_peak_usage(true) / 1048576));
+
+    expect($printed->pageCount)->toBe(200)->and($seconds)->toBeLessThan(60.0);
+});
+
+it('limite un rouleau à 200 étiquettes par PDF', function () {
+    $assets = Asset::factory()->count(5)->create();
+
+    app(PrintLabels::class)($this->roll, $assets->pluck('id')->all(), copies: 50);
+})->throws(DomainException::class, 'maximum 200');

@@ -53,6 +53,8 @@
         <x-filament::section heading="Aperçu" class="xl:col-span-2">
             @if ($this->tooBig())
                 <p class="text-sm text-danger-600">Ce modèle ne tient pas sur son support : corrigez ses dimensions dans « Modèles d'étiquettes ».</p>
+            @elseif ($preview === null && $this->previewError())
+                <p class="text-sm text-danger-600">{{ $this->previewError() }}</p>
             @elseif ($preview === null)
                 <p class="text-sm text-gray-600">Choisissez au moins un bien pour voir l'aperçu.</p>
             @else

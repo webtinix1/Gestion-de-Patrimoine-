@@ -7,6 +7,7 @@ use App\Models\LabelTemplate;
 use App\Services\Settings;
 use App\Support\Labels\ComposedLabel;
 use App\Support\Labels\LabelContent;
+use DomainException;
 
 /**
  * Met une étiquette en page (en mm) : le même calcul sert à l'aperçu et au PDF.
@@ -21,10 +22,31 @@ class LabelComposer
 
     private const float PT_TO_MM = 0.3528;
 
+    private const float MIN_NUMBER_PT = 6.0;
+
     public function __construct(
         private LabelCodeRenderer $codes,
         private Settings $settings,
     ) {}
+
+    /**
+     * Vérifie qu'un modèle peut imprimer le plus long numéro possible avec le format de numéro configuré (RG-95).
+     *
+     * @throws DomainException
+     */
+    public function assertCanPrint(LabelTemplate $template): void
+    {
+        $this->compose($template, new LabelContent($this->longestNumber()));
+    }
+
+    public function longestNumber(): string
+    {
+        $prefix = $this->settings->string(Settings::NUMBER_PREFIX) ?: 'PAT';
+
+        return $this->settings->string(Settings::NUMBER_FORMAT) === Settings::FORMAT_YEARLY
+            ? $prefix.'-2026-000001'
+            : $prefix.'-000001';
+    }
 
     public function compose(LabelTemplate $template, LabelContent $content, bool $vector = false): ComposedLabel
     {
@@ -37,17 +59,17 @@ class LabelComposer
             : $this->settings->string(Settings::CHURCH_ACRONYM);
 
         if ($template->code_type === LabelCodeType::Qr) {
-            $codeSize = min($height - 2 * $pad, $width * 0.42);
+            $codeSize = min($height - 2.0, $width * 0.42);
             $code = $this->codes->render($template->code_type, $content->number, $codeSize, $codeSize, $vector);
-            $codeX = $pad;
+            $codeX = 1.0;
             $codeY = ($height - $code->heightMm) / 2;
-            $textX = $pad + $code->widthMm + 2.0;
+            $textX = 1.0 + $code->widthMm + 1.0;
             $textTop = $pad;
             $textHeight = $height - 2 * $pad;
             $textWidth = $width - $textX - $pad;
         } else {
             $barHeight = min($height * 0.36, 14.0);
-            $code = $this->codes->render($template->code_type, $content->number, $width - 2 * $pad, $barHeight, $vector);
+            $code = $this->codes->render($template->code_type, $content->number, $width, $barHeight, $vector);
             $codeX = ($width - $code->widthMm) / 2;
             $codeY = $height - $pad - $code->heightMm;
             $textX = $pad;
@@ -103,7 +125,7 @@ class LabelComposer
         foreach ($candidates as $candidate) {
             $lineHeight = $this->lineHeight($candidate['pt']);
             $lines[] = [
-                'text' => $this->fit($candidate['text'], $candidate['pt'], $candidate['bold'], $candidate['mono'], $width),
+                'text' => $candidate['mono'] ? $candidate['text'] : $this->fit($candidate['text'], $candidate['pt'], $candidate['bold'], false, $width),
                 'x' => $x,
                 'y' => $y,
                 'w' => $width,
@@ -132,13 +154,18 @@ class LabelComposer
     }
 
     /**
-     * Le numéro est la ligne la plus grosse (jusqu'à 11 pt), réduite pour tenir sur une ligne.
+     * Le numéro est la ligne la plus grosse (jusqu'à 11 pt), réduite (arrondi vers le bas) pour tenir
+     * entier sur une ligne. Il n'est jamais coupé : s'il ne tient pas à 6 pt, l'étiquette est refusée.
      */
     private function numberSize(string $number, float $width): float
     {
-        $fits = $width / (max(1, mb_strlen($number)) * 0.602 * self::PT_TO_MM);
+        $fits = floor($width / (max(1, mb_strlen($number)) * 0.602 * self::PT_TO_MM) * 10) / 10;
 
-        return round(max(6.0, min(11.0, $fits)), 1);
+        if ($fits < self::MIN_NUMBER_PT) {
+            throw new DomainException("Le numéro {$number} ne tient pas sur cette étiquette : agrandissez-la ou réduisez la place du code.");
+        }
+
+        return min(11.0, $fits);
     }
 
     /**

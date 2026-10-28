@@ -39,7 +39,7 @@ class LabelTemplatePolicy
 
     public function delete(User $user, LabelTemplate $template): bool
     {
-        return $this->allows($user, PermissionAbility::Delete) && ! $template->is_default;
+        return false;
     }
 
     public function deleteAny(User $user): bool

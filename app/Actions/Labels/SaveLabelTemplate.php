@@ -24,6 +24,8 @@ class SaveLabelTemplate
 
         return DB::transaction(function () use ($data, $template): LabelTemplate {
             $template ??= new LabelTemplate;
+            $previousSheet = $template->exists ? $template->getOriginal('sheet_layout') : null;
+            $previousIsSheet = $previousSheet instanceof LabelSheetLayout ? $previousSheet->isSheet() : null;
             $template->fill($data);
 
             $sameSupport = fn () => LabelTemplate::query()
@@ -41,8 +43,27 @@ class SaveLabelTemplate
                 $sameSupport()->where('is_default', true)->update(['is_default' => false]);
             }
 
+            // Changer le support d'un modèle ne doit pas laisser l'ancien support sans modèle par défaut.
+            if ($previousIsSheet !== null && $previousIsSheet !== $template->sheet_layout->isSheet()) {
+                $this->ensureDefault($previousIsSheet);
+            }
+
             return $template;
         });
+    }
+
+    private function ensureDefault(bool $sheet): void
+    {
+        $layouts = collect(LabelSheetLayout::cases())
+            ->filter(fn (LabelSheetLayout $case): bool => $case->isSheet() === $sheet)
+            ->map(fn (LabelSheetLayout $case): string => $case->value)
+            ->all();
+
+        $query = LabelTemplate::query()->whereIn('sheet_layout', $layouts);
+
+        if (! (clone $query)->where('is_default', true)->exists()) {
+            (clone $query)->orderBy('name')->first()?->forceFill(['is_default' => true])->save();
+        }
     }
 
     /**

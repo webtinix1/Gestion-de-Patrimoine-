@@ -29,6 +29,26 @@ final class PdfInspector
     }
 
     /**
+     * Textes imprimés, dans l'ordre du PDF (DomPDF écrit chaque caractère sur deux octets, l'octet de poids fort est nul).
+     *
+     * @return list<string>
+     */
+    public function texts(): array
+    {
+        $texts = [];
+
+        foreach ($this->streams as $stream) {
+            if (preg_match_all('/\[\((.*?)\)\]\s*TJ/s', $stream, $matches)) {
+                foreach ($matches[1] as $raw) {
+                    $texts[] = trim(str_replace([chr(0), '\(', '\)'], ['', '(', ')'], $raw));
+                }
+            }
+        }
+
+        return $texts;
+    }
+
+    /**
      * @return list<array{0: float, 1: float}> largeur et hauteur de chaque page, en mm
      */
     public function pageSizesMm(): array

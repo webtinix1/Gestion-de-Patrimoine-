@@ -14,6 +14,7 @@ use App\Support\Labels\LabelContent;
 use App\Support\Labels\SheetSlot;
 use BackedEnum;
 use Closure;
+use DomainException;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -184,6 +185,12 @@ class LabelTemplateResource extends Resource
 
             if (! app(LabelSheetBuilder::class)->fits($template)) {
                 $fail('Avec ce support, les étiquettes dépassent la page A4 : réduisez la largeur ou la hauteur.');
+            } else {
+                try {
+                    app(LabelComposer::class)->assertCanPrint($template);
+                } catch (DomainException $exception) {
+                    $fail($exception->getMessage());
+                }
             }
         };
     }
@@ -213,16 +220,21 @@ class LabelTemplateResource extends Resource
     private static function previewData(Get $get): array
     {
         $template = self::templateFromState($get);
-        $label = app(LabelComposer::class)->compose(
-            $template,
-            new LabelContent('PAT-000125', 'Ordinateur portable HP', 'Administration', 'Siège', 'Bureau administratif'),
-            vector: true,
-        );
+        try {
+            $label = app(LabelComposer::class)->compose(
+                $template,
+                new LabelContent('PAT-000125', 'Ordinateur portable HP', 'Administration', 'Siège', 'Bureau administratif'),
+                vector: true,
+            );
+        } catch (DomainException $exception) {
+            return ['pages' => [], 'width' => $template->width_mm, 'height' => $template->height_mm, 'error' => $exception->getMessage()];
+        }
 
         return [
             'pages' => [[new SheetSlot(1, 0.0, 0.0, $template->width_mm, $template->height_mm, $label)]],
             'width' => $template->width_mm,
             'height' => $template->height_mm,
+            'error' => null,
         ];
     }
 }

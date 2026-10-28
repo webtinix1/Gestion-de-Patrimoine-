@@ -254,9 +254,10 @@ it('journalise la réimpression d\'un bien déjà étiqueté', function () {
 
     expect($entries)->toHaveCount(2)
         ->and($entries[0]->description)->toBe('Impression d\'étiquettes : 1 étiquette, Planche A4, case 1')
-        ->and($entries[0]->properties['attributes']['reprint'])->toBeFalse()
+        ->and($entries[0]->properties['attributes'])->not->toHaveKey('reprinted_numbers')
         ->and($entries[1]->description)->toBe('Réimpression d\'étiquettes : 1 étiquette, Planche A4, case 3')
-        ->and($entries[1]->properties['attributes']['reprint'])->toBeTrue();
+        ->and($entries[1]->properties['attributes']['reprinted_numbers'])->toBe(['PAT-000700'])
+        ->and($entries[1]->subject_id)->toBe($asset->id);
 });
 
 it('journalise une impression sur rouleau sans case', function () {
@@ -289,4 +290,77 @@ it('n\'imprime pas les biens hors périmètre ni les biens sortis, et ne les cit
 
     expect($printed->labelCount)->toBe(1)
         ->and(Activity::query()->where('log_name', 'etiquettes')->firstOrFail()->properties['attributes']['asset_numbers'])->toBe(['PAT-000801']);
+});
+
+it('distingue, bien par bien, la réimpression de la première impression', function () {
+    $this->actingAs($this->manager);
+
+    $template = LabelTemplate::factory()->create(['name' => 'Standard']);
+    $old = Asset::factory()->create(['number' => 'PAT-000710']);
+    $new = Asset::factory()->create(['number' => 'PAT-000711']);
+
+    app(PrintLabels::class)($template, [$old->id]);
+    app(PrintLabels::class)($template, [$old->id, $new->id]);
+
+    $entry = Activity::query()->where('log_name', 'etiquettes')->latest('id')->firstOrFail();
+
+    expect($entry->description)->toBe('Impression d\'étiquettes : 2 étiquettes, Planche A4, cases 1 à 2 (dont 1 réimpression)')
+        ->and($entry->properties['attributes']['reprinted_numbers'])->toBe(['PAT-000710'])
+        ->and($entry->subject_id)->toBeNull();
+});
+
+it('rattache l\'impression d\'un seul bien à sa fiche, onglet Journal compris', function () {
+    $this->actingAs($this->manager);
+
+    $asset = Asset::factory()->create();
+    app(PrintLabels::class)(LabelTemplate::factory()->create(), [$asset->id]);
+
+    $entry = Activity::query()->where('log_name', 'etiquettes')->firstOrFail();
+
+    expect($entry->subject_type)->toBe($asset->getMorphClass())->and($entry->subject_id)->toBe($asset->id)
+        ->and(Activity::query()->where('subject_type', $asset->getMorphClass())->where('subject_id', $asset->id)->where('log_name', 'etiquettes')->count())->toBe(1);
+});
+
+it('n\'écrit rien au journal quand le PDF ne peut pas être produit', function () {
+    $this->actingAs($this->manager);
+
+    $roll = LabelTemplate::factory()->roll()->create();
+    $asset = Asset::factory()->create(['number' => 'AUD-2026-0000125-AB']);
+
+    expect(fn () => app(PrintLabels::class)($roll, [$asset->id]))->toThrow(DomainException::class)
+        ->and(Activity::query()->where('log_name', 'etiquettes')->count())->toBe(0);
+});
+
+it('ne laisse pas l\'autre support sans modèle par défaut quand on change le support du modèle par défaut', function () {
+    $this->actingAs($this->manager);
+
+    $sheetA = LabelTemplate::factory()->create(['name' => 'A', 'is_default' => true]);
+    $sheetB = LabelTemplate::factory()->create(['name' => 'B']);
+    $roll = LabelTemplate::factory()->roll()->create(['name' => 'R', 'is_default' => false]);
+
+    livewire(EditLabelTemplate::class, ['record' => $sheetA->getRouteKey()])
+        ->fillForm(['sheet_layout' => LabelSheetLayout::Roll, 'width_mm' => 50, 'height_mm' => 25, 'is_default' => true])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    expect($sheetA->fresh()->is_default)->toBeTrue()
+        ->and($roll->fresh()->is_default)->toBeFalse()
+        ->and($sheetB->fresh()->is_default)->toBeTrue();
+});
+
+it('refuse à l\'enregistrement un modèle dont le numéro ne tient pas', function () {
+    $this->actingAs($this->manager);
+
+    livewire(CreateLabelTemplate::class)
+        ->fillForm([
+            'name' => 'Minuscule',
+            'sheet_layout' => LabelSheetLayout::Roll,
+            'code_type' => LabelCodeType::Qr,
+            'width_mm' => 20,
+            'height_mm' => 15,
+        ])
+        ->call('create')
+        ->assertHasFormErrors(['width_mm']);
+
+    expect(LabelTemplate::query()->where('name', 'Minuscule')->exists())->toBeFalse();
 });

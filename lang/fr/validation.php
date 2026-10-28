@@ -176,7 +176,7 @@ return [
         'cells' => 'cases',
         'copies' => 'copies par bien',
         'label_count' => 'étiquettes',
-        'reprint' => 'réimpression',
+        'reprinted_numbers' => 'biens réimprimés',
     ],
 
 ];
