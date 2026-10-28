@@ -27,14 +27,15 @@ it('crée environ 300 biens de démonstration', function () {
 
 it('répartit les biens sur les sites, les catégories et les états, avec les seuls statuts autorisés', function () {
     $usedSites = Asset::query()->distinct()->pluck('site_id');
-    $statuses = Asset::query()->pluck('status')->unique()->map(fn (AssetStatus $status) => $status->value)->values()->all();
+    // Les 3 sorties de démonstration (lot 10) sont les seuls biens Cédé ou Réformé.
+    $statuses = Asset::query()->whereNull('disposed_at')->pluck('status')->unique()->map(fn (AssetStatus $status) => $status->value)->values()->all();
 
     expect($usedSites->count())->toBe(Site::query()->where('is_active', true)->count())
         ->and(Asset::query()->distinct()->count('asset_category_id'))->toBe(10)
         ->and(Asset::query()->distinct()->count('asset_condition_id'))->toBe(6)
         ->and($statuses)->toEqualCanonicalizing([AssetStatus::InService->value, AssetStatus::InStock->value, AssetStatus::OutOfService->value])
         ->and(Asset::query()->where('status', AssetStatus::InService)->count())->toBeGreaterThan(250)
-        ->and(Asset::query()->whereNotNull('disposed_at')->count())->toBe(0);
+        ->and(Asset::query()->whereNotNull('disposed_at')->count())->toBe(3);
 });
 
 it('place chaque bien dans un local du site indiqué', function () {
@@ -66,7 +67,7 @@ it('crée le PAT-000125 du cas A2', function () {
         ->and($asset->room?->name)->toBe('Bureau administratif');
 });
 
-it('crée le PAT-000034 du cas A5, hors service mais encore en service au patrimoine', function () {
+it('crée le PAT-000034 du cas A5, hors service, puis sorti du patrimoine le 26/10/2026 (lot 10)', function () {
     $asset = demoAsset('PAT-000034');
 
     expect($asset->designation)->toBe('Groupe électrogène')
@@ -80,8 +81,8 @@ it('crée le PAT-000034 du cas A5, hors service mais encore en service au patrim
         ->and($asset->department->code)->toBe('LOG')
         ->and($asset->room?->name)->toBe('Local technique')
         ->and($asset->condition->label)->toBe('Hors service')
-        ->and($asset->status)->toBe(AssetStatus::InService)
-        ->and($asset->disposed_at)->toBeNull();
+        ->and($asset->status)->toBe(AssetStatus::Retired)
+        ->and($asset->disposed_at?->toDateString())->toBe('2026-10-26');
 });
 
 it('crée le PAT-001248 du cas A3', function () {

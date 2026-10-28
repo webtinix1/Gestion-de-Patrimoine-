@@ -30,18 +30,19 @@ it('génère un plan courant pour chaque bien amortissable de démonstration', f
         ->and(DepreciationLine::query()->where('fiscal_year', '>=', 2026)->where('is_locked', true)->count())->toBe(0);
 });
 
-it('montre exactement les cas A2, A5 (sans la sortie) et A3 sur les biens de démonstration', function () {
-    $a5 = array_filter(depreciationCase('A5')['attendu'], fn (array $line) => $line['exercice'] < 2026);
-
+it('montre exactement les cas A2, A5 (avec la sortie du lot 10) et A3 sur les biens de démonstration', function () {
     expect(scheduleLines(Asset::query()->where('number', 'PAT-000125')->sole()))->toBe(depreciationCase('A2')['attendu'])
-        ->and(array_slice(scheduleLines(Asset::query()->where('number', 'PAT-000034')->sole()), 0, 4))->toBe(array_values($a5))
+        ->and(scheduleLines(Asset::query()->where('number', 'PAT-000034')->sole()))->toBe(depreciationCase('A5')['attendu'])
         ->and(scheduleLines(Asset::query()->where('number', 'PAT-001248')->sole()))->toBe(depreciationCase('A3')['attendu']);
 
-    $pat34 = currentSchedule(Asset::query()->where('number', 'PAT-000034')->sole());
+    // RG-38 : la version validée à la clôture de 2025 (sans la sortie) est conservée ; la sortie a créé la version 2.
+    $asset = Asset::query()->where('number', 'PAT-000034')->sole();
+    $validated = DepreciationSchedule::query()->where('asset_id', $asset->id)->where('version', 1)->with('lines')->sole();
 
-    expect($pat34->lines->sum('amount'))->toBe(4800000)
-        ->and($pat34->lines->firstWhere('fiscal_year', 2026)->amount)->toBe(600000)
-        ->and($pat34->isValidated())->toBeTrue();
+    expect($validated->lines->sum('amount'))->toBe(4800000)
+        ->and($validated->lines->firstWhere('fiscal_year', 2026)->amount)->toBe(600000)
+        ->and($validated->isValidated())->toBeTrue()
+        ->and(currentSchedule($asset)->version)->toBe(2);
 });
 
 it('est idempotent, comme la commande de recalcul', function () {
