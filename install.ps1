@@ -23,7 +23,7 @@
     .\install.ps1
     .\install.ps1 -Url http://patrimoine.local -DbNom patrimoine -DbUtilisateur patrimoine
     .\install.ps1 -Demo -Base sqlite        # essai rapide, sans MySQL
-    .\install.ps1 -TachePlanifiee           # enregistre aussi la tâche Windows schedule:run (droits administrateur)
+    .\install.ps1 -SansTachePlanifiee       # n'enregistre pas la tâche Windows schedule:run (installée d'office, sauf avec -Demo)
 #>
 [CmdletBinding()]
 param(
@@ -38,6 +38,7 @@ param(
     [string]$Url = 'http://patrimoine.local',
     [switch]$SansFront,
     [switch]$TachePlanifiee,
+    [switch]$SansTachePlanifiee,
     [switch]$MotDePasseStdin,
     [string]$Identifiant,
     [string]$Prenom,
@@ -221,7 +222,11 @@ Step 'Cache de configuration'
 if ($LASTEXITCODE -ne 0) { Fail 'php artisan optimize a échoué.' }
 
 # 6. Tâche planifiée ------------------------------------------------------------------------------------
-if ($TachePlanifiee) {
+# Installée d'office (alertes recalculées chaque heure, QL12-6), sauf -SansTachePlanifiee ; avec -Demo,
+# seulement si -TachePlanifiee est demandé.
+$installerTache = -not $SansTachePlanifiee -and ($TachePlanifiee -or -not $Demo)
+$tacheEnregistree = $false
+if ($installerTache) {
     Step 'Tâche planifiée Windows'
     # Exécutable et arguments séparés : un chemin contenant un espace reste correctement cité.
     $action = New-ScheduledTaskAction -Execute $phpExe -Argument "`"$PSScriptRoot\artisan`" schedule:run" -WorkingDirectory $PSScriptRoot
@@ -230,15 +235,19 @@ if ($TachePlanifiee) {
     $settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 10)
     try {
         Register-ScheduledTask -TaskName 'Patrimoine - planificateur' -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
+        $tacheEnregistree = $true
+        Write-Host 'Tâche « Patrimoine - planificateur » enregistrée (chaque minute).'
     } catch {
-        Fail "Création de la tâche refusée ($($_.Exception.Message)) : relancez PowerShell en administrateur, ou créez-la à la main (docs\07-deploiement-local.md)."
+        $message = "Création de la tâche refusée ($($_.Exception.Message)) : relancez PowerShell en administrateur, ou créez-la à la main (docs\07-deploiement-local.md)."
+        # Demandée explicitement : échec ; installée d'office : avertissement, l'application reste installée.
+        if ($TachePlanifiee) { Fail $message }
+        Write-Warning $message
     }
-    Write-Host 'Tâche « Patrimoine - planificateur » enregistrée (chaque minute).'
 }
 
 Step 'Terminé'
 Write-Host "Application installée. Adresse : $(Get-EnvValue '.env' 'APP_URL')"
-if (-not $TachePlanifiee) {
-    Write-Host "Planificateur Windows (à créer une fois) : relancez avec -TachePlanifiee, ou voir docs\07-deploiement-local.md."
+if (-not $tacheEnregistree) {
+    Write-Host "Planificateur Windows non enregistré : relancez en administrateur (avec -TachePlanifiee pour une démonstration), ou voir docs\07-deploiement-local.md."
 }
 Write-Host 'Contrôle à tout moment : php artisan patrimoine:verifier'

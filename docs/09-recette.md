@@ -259,7 +259,7 @@ Aucun défaut **bloquant**.
 
 ### Tests humains restants
 
-1. Installation sur le PC serveur du client, poste vierge, avec `install.ps1`, MariaDB ou MySQL, hôte virtuel, tâche planifiée `-TachePlanifiee` (installée d'office, D4), démarrage automatique (critère 1).
+1. Installation sur le PC serveur du client, poste vierge, avec `install.ps1`, MariaDB ou MySQL, hôte virtuel, tâche planifiée (installée d'office, D4), démarrage automatique (critère 1).
 2. Connexion depuis 3 postes du réseau local, pare-feu, `APP_URL` (critères 2, 3).
 3. Recette entière câble Internet débranché (critère 4).
 4. Impression d'une étiquette et d'une planche de 24 sur l'imprimante et la planche du client, décalage éventuel (QL4-2), lisibilité du texte de 5,5 pt ; rouleau si une imprimante d'étiquettes est retenue (critères 8, 9).

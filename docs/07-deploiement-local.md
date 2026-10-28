@@ -61,7 +61,7 @@ Le script, dans l'ordre :
 Options utiles :
 
 - `-Demo` charge en plus la démonstration (comptes à mot de passe connu : **jamais sur le serveur réel**). Un `.env` neuf est alors écrit en `APP_ENV=local` (la démonstration est refusée en production). La commande la refuse aussi dès que la base contient un compte ou des données (la démonstration réécrit le compte `admin` : elle ne peut donc jamais toucher un vrai administrateur) ; pour la recharger, repartir d'une base vide.
-- `-TachePlanifiee` enregistre la tâche Windows de la section 5 (PowerShell en administrateur).
+- La tâche Windows de la section 5 est enregistrée d'office (PowerShell en administrateur ; sinon un avertissement donne la marche à suivre). `-SansTachePlanifiee` la refuse ; avec `-Demo`, elle n'est créée que si `-TachePlanifiee` est passé.
 - `-MotDePasseStdin -Identifiant ... -Prenom ... -Nom ...` pour un déploiement scripté. Le script lit alors toute l'entrée standard, **une valeur par ligne, dans cet ordre** : 1) le mot de passe de la base, seulement si `.env` est créé et que la base n'est pas SQLite ; 2) le mot de passe du premier administrateur, seulement si aucun administrateur n'existe. Exemple : `"MotDePasseBase`nMotDePasseAdmin" | .\install.ps1 -MotDePasseStdin -Identifiant admin`. Éviter les caractères accentués dans ces mots de passe (le tube de Windows PowerShell 5.1 peut les altérer).
 - Après toute modification ultérieure de `.env`, relancer `php artisan optimize` : la configuration est mise en cache.
 
@@ -96,7 +96,7 @@ Vérifier que `mod_rewrite` est activé (WAMP > Apache > Modules Apache). Ne pas
 
 ### 5. Planificateur Windows (`schedule:run` chaque minute)
 
-Le planificateur de Laravel (alertes et rappels) ne tourne que si Windows l'appelle chaque minute. Avec `install.ps1 -TachePlanifiee`, ou à la main (PowerShell en administrateur) :
+Le planificateur de Laravel (alertes et rappels) ne tourne que si Windows l'appelle chaque minute. `install.ps1` enregistre cette tâche d'office ; sinon, à la main (PowerShell en administrateur) :
 
 ```powershell
 $php = 'C:\wamp64\bin\php\php8.4.0\php.exe'
