@@ -10,13 +10,13 @@ use Illuminate\Console\Command;
 /**
  * Contrôle l'installation (PHP, extensions, droits, base) sans rien modifier, à lancer à tout moment.
  */
-#[Signature('patrimoine:verifier {--sans-base : Ne teste pas la connexion à la base}')]
+#[Signature('patrimoine:verifier {--sans-base : Ne teste pas la connexion à la base} {--reparer : Crée les dossiers manquants et pose les déclencheurs du journal}')]
 #[Description('Vérifie l\'installation : version de PHP, extensions, dossiers, clé, base de données')]
 class VerifyInstallationCommand extends Command
 {
     public function handle(EnvironmentCheck $check): int
     {
-        $results = $check->run(withDatabase: ! $this->option('sans-base'));
+        $results = $check->run(withDatabase: ! $this->option('sans-base'), repair: (bool) $this->option('reparer'));
 
         $this->table(['Contrôle', 'Résultat', 'Détail'], array_map(fn (array $result): array => [
             $result['label'],

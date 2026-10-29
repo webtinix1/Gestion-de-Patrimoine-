@@ -8,7 +8,7 @@ Ce document s'adresse au développeur ou au technicien qui reprend l'application
 |---|---|
 | Application | Laravel 13, Filament 5 (Livewire 4), un seul panneau `/admin` (la racine `/` redirige vers `/admin`) |
 | PHP | 8.3 minimum (développé sous 8.4) |
-| Base de données | MySQL 8 ou MariaDB 10.11+ en production ; SQLite pour les tests ; pas de SQL propre à un moteur sans nécessité |
+| Base de données | MySQL 8 ou MariaDB 10.11+ en production, et MySQL pour les tests (SQLite possible pour un essai rapide) ; pas de SQL propre à un moteur sans nécessité, et pas d'expression brute qui nomme une colonne (`LAST_VALUE`, par exemple, est un mot réservé de MySQL 8) |
 | Tests | Pest 4 et les aides de test Filament |
 | Qualité | Laravel Pint, Larastan niveau 6 sans exception (`ignoreErrors`) |
 | Paquets métier | `spatie/laravel-permission` (rôles et droits), `spatie/laravel-activitylog` (journal), `barryvdh/laravel-dompdf` (PDF), `maatwebsite/excel` (Excel), `endroid/qr-code` et `picqer/php-barcode-generator` (étiquettes) |
@@ -171,18 +171,32 @@ Outils de qualité : `vendor/bin/pint`, `vendor/bin/phpstan analyse`.
 - `tests/Feature/<Domaine>` : un dossier par domaine (`Acces`, `Acquisitions`, `Alertes`, `Amortissements`, `Biens`, `Documents`, `Etiquettes`, `Inventaires`, `Maintenance`, `Mouvements`, `Prets`, `Rapports`, `Signalements`, `Socle`, `Sorties`, `Structure`, `Systeme`, `TableauDeBord`). Convention de nommage : tests de règles et d'écrans, tests de démonstration (`Demo*Test`), tests de revue (`Revue*Test`, `CorrectionsRevue*Test`) qui reprennent les sondes des relecteurs en non-régression, tests de concurrence (`*Concurrence*Test`).
 - `tests/Unit` : le calculateur d'amortissement et ses cas de revue ; `tests/Fixtures/amortissements.json` : les cas validés, qu'on ne modifie jamais pour faire passer un calcul.
 - `tests/Support` : `OperationsWorld` (jeu de données), `PdfInspector` (lit les PDF DomPDF : pages, textes, positions), `CodeReader` (décode QR et Code 128), scripts `concurrent-*.php`.
-- Configuration : `phpunit.xml` (SQLite en mémoire, journal et files en mode test), `tests/Pest.php` (`RefreshDatabase` sur tous les tests `Feature`).
-- Commande : `php artisan test` (suite complète, environ une demi-heure) ou un dossier : `php artisan test tests/Feature/Systeme`.
+- Configuration :
+  - `phpunit.xml` : **MySQL**, comme en production, sur la base jetable `patrimoine_test` (127.0.0.1:3306) ; journal et files en mode test.
+  - L'identifiant et le mot de passe viennent de `DB_USERNAME` et `DB_PASSWORD` (dans le `.env`, ou dans l'environnement en CI).
+  - `tests/Pest.php` applique `RefreshDatabase` à tous les tests `Feature`.
+  - Garde-fou dans `tests/TestCase.php` : les tests refusent toute base dont le nom ne finit pas par `_test` (ou autre que SQLite `:memory:`).
+- Poste de développement :
+  - Démarrer le MySQL de WAMP.
+  - Créer les bases `patrimoine_test` et `patrimoine_concurrence`, accessibles au compte du `.env`, avec `log_bin_trust_function_creators=1` (voir docs/07, « Verrou du journal »).
+  - Pour un essai rapide sans serveur : `DB_CONNECTION=sqlite DB_DATABASE=:memory: php vendor/bin/pest`.
+- Commande : `php artisan test` (suite complète, environ une demi-heure), ou un seul dossier : `php artisan test tests/Feature/Systeme`.
+- **Les tests partagent la même base : ne jamais lancer deux suites MySQL en même temps.**
+- CI GitHub : `.github/workflows/tests.yml`. Elle lance la suite sur MySQL 9.1 et sur MariaDB 11.4, avec un compte sans privilège SUPER, puis Pint et PHPStan, à chaque PR et sur main.
 
 ### 6.2 Tests de concurrence
 
 Ils lancent de **vrais processus PHP parallèles** (scripts `tests/Support/concurrent-*.php`) sur une base partagée : numéro patrimonial, validation d'acquisition, saisie d'inventaire, sorties, prêt et maintenance simultanés, clôture d'exercice et sortie.
 
 - Variante SQLite : toujours exécutée (transactions `IMMEDIATE`).
-- Variante MySQL / MariaDB : ignorée (comptée « ignorée ») tant qu'une **base jetable** n'est pas indiquée par les variables d'environnement `CONCURRENCE_DB_DRIVER` (`mysql` ou `mariadb`), `CONCURRENCE_DB_HOST`, `CONCURRENCE_DB_PORT`, `CONCURRENCE_DB_DATABASE`, `CONCURRENCE_DB_USERNAME`, `CONCURRENCE_DB_PASSWORD`. **La base indiquée est entièrement vidée par le test** : ne jamais pointer vers une base de production. Exemple :
+- Variante MySQL / MariaDB : elle tourne sur la **base jetable** `patrimoine_concurrence`. `phpunit.xml` la fixe avec les variables `CONCURRENCE_DB_DRIVER` (`mysql`), `CONCURRENCE_DB_HOST`, `CONCURRENCE_DB_PORT` et `CONCURRENCE_DB_DATABASE`.
+  - Identifiant et mot de passe : `CONCURRENCE_DB_USERNAME` et `CONCURRENCE_DB_PASSWORD`, ou à défaut ceux de la connexion de test (fonction `concurrencyDb()` de `tests/Pest.php`).
+  - Seul le moteur indiqué tourne. L'autre est compté « ignoré ».
+  - **La base indiquée est entièrement vidée par le test** : ne jamais pointer vers une base de production.
+  - Exemple sur MariaDB :
 
 ```
-CONCURRENCE_DB_DRIVER=mariadb CONCURRENCE_DB_HOST=127.0.0.1 CONCURRENCE_DB_PORT=3399 CONCURRENCE_DB_DATABASE=pat CONCURRENCE_DB_USERNAME=root CONCURRENCE_DB_PASSWORD= php artisan test --filter=Concurrence
+CONCURRENCE_DB_DRIVER=mariadb CONCURRENCE_DB_PORT=3307 php artisan test --filter=Concurrence
 ```
 
 Tout nouveau verrou ou toute nouvelle référence doit venir avec son test de concurrence sur les deux moteurs.

@@ -1,0 +1,100 @@
+# Tests, style et analyse statique à chaque PR et sur main, sur les deux moteurs acceptés en production
+# (docs/07) : MySQL et MariaDB. Comme sur le poste de l'Église, l'application se connecte avec un compte
+# dédié, sans privilège SUPER, et le journal binaire de MySQL est actif.
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Pest (${{ matrix.database.name }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    strategy:
+      fail-fast: false
+      matrix:
+        database:
+          - { name: MySQL 9.1, image: 'mysql:9.1', client: mysql, connection: mysql }
+          - { name: MariaDB 11.4, image: 'mariadb:11.4', client: mariadb, connection: mariadb }
+
+    services:
+      database:
+        image: ${{ matrix.database.image }}
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MARIADB_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="${{ matrix.database.client }}-admin ping -proot || mysqladmin ping -proot"
+          --health-interval=5s --health-timeout=5s --health-retries=30
+
+    env:
+      DB_CONNECTION: ${{ matrix.database.connection }}
+      DB_USERNAME: patrimoine
+      DB_PASSWORD: patrimoine-ci
+      CONCURRENCE_DB_DRIVER: ${{ matrix.database.connection }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, ctype, curl, dom, fileinfo, gd, iconv, intl, mbstring, openssl, pdo, pdo_mysql, pdo_sqlite, tokenizer, xml, zip
+          coverage: none
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Compte dédié et bases jetables
+        run: |
+          mysql -h127.0.0.1 -uroot -proot <<'SQL'
+          SET GLOBAL log_bin_trust_function_creators = 1;
+          CREATE DATABASE patrimoine_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+          CREATE DATABASE patrimoine_concurrence CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+          CREATE USER 'patrimoine'@'%' IDENTIFIED BY 'patrimoine-ci';
+          GRANT ALL PRIVILEGES ON patrimoine_test.* TO 'patrimoine'@'%';
+          GRANT ALL PRIVILEGES ON patrimoine_concurrence.* TO 'patrimoine'@'%';
+          SQL
+
+      - name: Dépendances
+        run: |
+          composer install --no-interaction --no-progress --prefer-dist
+          npm ci
+          npm run build
+
+      - name: Environnement
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Tests
+        run: php vendor/bin/pest
+
+  qualite:
+    name: Pint et PHPStan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, gd, intl, zip
+          coverage: none
+
+      - run: composer install --no-interaction --no-progress --prefer-dist
+      - run: php vendor/bin/pint --test
+      - run: php vendor/bin/phpstan analyse --memory-limit=2G --no-progress

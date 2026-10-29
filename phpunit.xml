@@ -23,9 +23,19 @@
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>
-        <env name="DB_CONNECTION" value="sqlite"/>
-        <env name="DB_DATABASE" value=":memory:"/>
+        <!-- Tests sur MySQL, comme en production (base jetable patrimoine_test, vidée à chaque lancement).
+             Identifiant et mot de passe : DB_USERNAME et DB_PASSWORD du .env, ou de l'environnement (CI).
+             Pour SQLite en mémoire : DB_CONNECTION=sqlite DB_DATABASE=:memory: php vendor/bin/pest -->
+        <env name="DB_CONNECTION" value="mysql"/>
+        <env name="DB_HOST" value="127.0.0.1"/>
+        <env name="DB_PORT" value="3306"/>
+        <env name="DB_DATABASE" value="patrimoine_test"/>
         <env name="DB_URL" value=""/>
+        <!-- Tests de concurrence (vrais processus parallèles) : autre base jetable, mêmes identifiants. -->
+        <env name="CONCURRENCE_DB_DRIVER" value="mysql"/>
+        <env name="CONCURRENCE_DB_HOST" value="127.0.0.1"/>
+        <env name="CONCURRENCE_DB_PORT" value="3306"/>
+        <env name="CONCURRENCE_DB_DATABASE" value="patrimoine_concurrence"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>

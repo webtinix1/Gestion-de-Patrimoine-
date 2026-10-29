@@ -43,6 +43,12 @@ Procédure testée sur WAMP 3.3 (Apache, PHP 8.3 ou 8.4, MariaDB ou MySQL). L'in
    FLUSH PRIVILEGES;
    ```
    Puis lancer `install.ps1 -DbUtilisateur patrimoine`. Vérifier aussi que la base n'écoute que sur la machine : `bind-address=127.0.0.1` dans la section `[mysqld]` de `my.ini` (WAMP > MySQL ou MariaDB > fichier my.ini), puis redémarrer le service ; `SHOW VARIABLES LIKE 'bind_address';` doit répondre `127.0.0.1`.
+
+   **Verrou du journal (RG-70)** : l'installation pose des déclencheurs qui empêchent de modifier ou d'effacer le journal des opérations, même par un accès direct à la base. MySQL 8 et 9 ont le journal binaire actif par défaut. Dans ce cas, un compte sans privilège SUPER, comme `patrimoine`, ne peut pas créer de déclencheur. Ajouter dans la même section `[mysqld]` de `my.ini` :
+   ```ini
+   log_bin_trust_function_creators=1
+   ```
+   puis redémarrer le service. Sans ce réglage, l'installation va quand même à son terme. Elle affiche un avertissement, et le journal reste protégé par l'application seule. Pour poser les déclencheurs ensuite, une fois le réglage fait : `php artisan patrimoine:verifier --reparer`. La ligne « Journal verrouillé en base » doit afficher OK.
 5. **Où copier l'application** : hors du dossier `www` de WAMP, par exemple `C:\patrimoine` (le dossier d'accès public est `public\`). Le paquet livré contient `vendor\` et `public\build\` ; sinon, il faut Composer, Node 20.19+ ou 22+ (de préférence Node 22 ou 24 : le npm 10 de Node 20 est instable) et une connexion Internet pour cette seule étape.
 
 ### 2. Installation

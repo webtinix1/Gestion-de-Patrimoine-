@@ -34,18 +34,18 @@ function acquisitionConcurrencyEnv(string $driver): ?array
         return [...$common, 'DB_CONNECTION' => 'sqlite', 'DB_DATABASE' => $path];
     }
 
-    if (! getenv('CONCURRENCE_DB_DATABASE') || getenv('CONCURRENCE_DB_DRIVER') !== $driver) {
+    if (! concurrencyDb('DATABASE') || concurrencyDb('DRIVER') !== $driver) {
         return null;
     }
 
     return [
         ...$common,
         'DB_CONNECTION' => $driver,
-        'DB_HOST' => (string) getenv('CONCURRENCE_DB_HOST'),
-        'DB_PORT' => (string) getenv('CONCURRENCE_DB_PORT'),
-        'DB_DATABASE' => (string) getenv('CONCURRENCE_DB_DATABASE'),
-        'DB_USERNAME' => (string) getenv('CONCURRENCE_DB_USERNAME'),
-        'DB_PASSWORD' => (string) getenv('CONCURRENCE_DB_PASSWORD'),
+        'DB_HOST' => concurrencyDb('HOST'),
+        'DB_PORT' => concurrencyDb('PORT'),
+        'DB_DATABASE' => concurrencyDb('DATABASE'),
+        'DB_USERNAME' => concurrencyDb('USERNAME'),
+        'DB_PASSWORD' => concurrencyDb('PASSWORD'),
     ];
 }
 
