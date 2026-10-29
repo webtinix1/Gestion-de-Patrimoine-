@@ -6,6 +6,7 @@ use App\Enums\AssetStatus;
 use App\Enums\DepreciationMethod;
 use App\Enums\FundingSource;
 use App\Filament\Resources\Activities\Pages\ListActivities;
+use App\Models\Acquisition;
 use App\Models\Activity;
 use App\Models\Asset;
 use App\Models\AssetCategory;
@@ -106,11 +107,13 @@ class ActivityResource extends Resource
 
         $inventoryType = (new Inventory)->getMorphClass();
         // QL8-1 : un emprunt (sans bien) n'est visible que d'un utilisateur sans périmètre restreint.
-        $types = [(new Asset)->getMorphClass(), (new Loan)->getMorphClass(), $inventoryType];
+        // Une acquisition est rattachée à un site et un département : filtrée comme un bien.
+        $scoped = [Asset::class, Loan::class, Acquisition::class];
+        $types = [...array_map(fn (string $class): string => (new $class)->getMorphClass(), $scoped), $inventoryType];
 
         return $query->where(fn (Builder $query) => $query
             ->where(fn (Builder $query) => $query->whereNull('subject_type')->orWhereNotIn('subject_type', $types))
-            ->orWhereHasMorph('subject', [Asset::class, Loan::class])
+            ->orWhereHasMorph('subject', $scoped)
             // Entrée portant sur un inventaire : visible si le périmètre contient l'inventaire, ou si le
             // bien non enregistré qu'elle trace est dans le périmètre.
             ->orWhere(fn (Builder $query) => $query->where('subject_type', $inventoryType)
@@ -139,7 +142,11 @@ class ActivityResource extends Resource
                     ->label('Opération')
                     ->badge()
                     ->color(fn (Activity $record): string => match ($record->log_name) {
-                        'connexion' => $record->event === 'locked' ? 'danger' : 'gray',
+                        'connexion' => match ($record->event) {
+                            'locked' => 'danger',
+                            'failed' => 'warning',
+                            default => 'gray',
+                        },
                         'roles' => 'warning',
                         default => 'primary',
                     })

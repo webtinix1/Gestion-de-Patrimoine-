@@ -9,6 +9,7 @@ use App\Filament\Resources\Users\UserResource;
 use App\Models\User;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 
 class CreateUser extends CreateRecord
 {
@@ -23,16 +24,19 @@ class CreateUser extends CreateRecord
     {
         $this->temporaryPassword = app(GenerateTemporaryPassword::class)();
 
-        $user = User::query()->create([
-            ...Arr::except($data, ['role', 'sites', 'departments']),
-            'password' => $this->temporaryPassword,
-            'must_change_password' => true,
-            'is_active' => true,
-        ]);
+        // Le compte n'est pas créé si son rôle ou son périmètre est refusé.
+        return DB::transaction(function () use ($data): User {
+            $user = User::query()->create([
+                ...Arr::except($data, ['role', 'sites', 'departments']),
+                'password' => $this->temporaryPassword,
+                'must_change_password' => true,
+                'is_active' => true,
+            ]);
 
-        app(SyncUserAccess::class)($user, $data['role'], $data['sites'] ?? [], $data['departments'] ?? []);
+            app(SyncUserAccess::class)($user, $data['role'], $data['sites'] ?? [], $data['departments'] ?? []);
 
-        return $user;
+            return $user;
+        });
     }
 
     protected function getCreatedNotification(): null

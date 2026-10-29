@@ -18,6 +18,9 @@ class BackupService
 {
     public const int MANIFEST_VERSION = 1;
 
+    // Signature HMAC-SHA256 de manifest.json avec APP_KEY : le manifeste porte les SHA-256 de tout le reste.
+    public const string SIGNATURE_FILE = 'manifest.sig';
+
     public function __construct(private readonly DatabaseTools $database) {}
 
     public function privateRoot(): string
@@ -57,9 +60,12 @@ class BackupService
                 json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             );
 
+            file_put_contents($dir.DIRECTORY_SEPARATOR.self::SIGNATURE_FILE, $this->signature($dir));
+
             $errors = $this->verify($dir);
 
-            if ($errors !== []) {
+            if ($errors !== [] || ! $this->verifySignature($dir)) {
+                $errors[] = 'signature du manifeste invalide';
                 throw new BackupException('Le contrôle d\'intégrité de la sauvegarde a échoué : '.implode(' ; ', array_slice($errors, 0, 5)));
             }
         } catch (Throwable $e) {
@@ -164,6 +170,31 @@ class BackupService
         }
 
         return $errors;
+    }
+
+    /**
+     * La signature (HMAC-SHA256 de manifest.json) est présente et correspond à l'APP_KEY de ce poste.
+     */
+    public function verifySignature(string $dir): bool
+    {
+        $path = $dir.DIRECTORY_SEPARATOR.self::SIGNATURE_FILE;
+
+        if (! is_file($path) || ! is_file($dir.DIRECTORY_SEPARATOR.'manifest.json')) {
+            return false;
+        }
+
+        return hash_equals($this->signature($dir), trim((string) file_get_contents($path)));
+    }
+
+    private function signature(string $dir): string
+    {
+        $key = (string) config('app.key');
+
+        if ($key === '') {
+            throw new BackupException('APP_KEY est vide : impossible de signer ou de vérifier le manifeste.');
+        }
+
+        return hash_hmac('sha256', (string) file_get_contents($dir.DIRECTORY_SEPARATOR.'manifest.json'), $key);
     }
 
     /**

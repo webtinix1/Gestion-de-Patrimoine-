@@ -27,6 +27,57 @@ Compatibilité vérifiée sur Packagist le 27/10/2026 : Laravel 13 exige PHP ^8.
 
 **Composer sur ce poste** : `composer require` et `composer dump-autoload` se figent pendant les scripts lancés après la génération de l'autoloader (aucune activité processeur). Contournement : `composer dump-autoload -n --no-scripts`, puis `php artisan package:discover` et `php artisan filament:upgrade`. Toujours rediriger l'entrée standard (`</dev/null`).
 
+## Lot 13 · Durcissement de sécurité · 30/10/2026
+
+Correctifs de l'audit du 29/10/2026 (`docs/11-audit-securite.md`, constats S1 à S19).
+
+- **Fait** :
+  - **Comptes et rôles** (S2, S4, S10) :
+    - `UserPolicy` : un compte administrateur n'est modifié, réinitialisé ou désactivé que par un administrateur (`User::isAdministrator()`).
+    - `RolePolicy` : créer, modifier et supprimer un rôle sont réservés en dur à l'Administrateur, comme les Paramètres.
+    - `SyncUserAccess` revérifie côté serveur, et refuse avec une erreur de formulaire :
+      - de changer son propre rôle ou son propre périmètre ;
+      - d'attribuer le rôle Administrateur sans l'être ;
+      - d'accorder un périmètre plus large que le sien (vide = tous) ;
+      - de retirer le rôle au dernier administrateur actif.
+    - `SetUserActive` refuse de désactiver le dernier administrateur et supprime les sessions en base du compte désactivé. La fiche Utilisateur passe par cette action pour l'activation.
+    - Création et modification d'un compte se font dans une transaction : un refus n'en laisse rien.
+    - Formulaire : le rôle Administrateur n'est proposé qu'aux administrateurs ; rôle et périmètre sont grisés sur son propre compte.
+  - **Connexion** (S5, S16, S17) :
+    - Un compte bloqué reçoit le même message qu'un échec ordinaire (« … ou compte temporairement bloqué ») : l'existence d'un identifiant ne se devine plus.
+    - Compteur d'échecs incrémenté de façon atomique.
+    - Chaque échec est tracé avec l'adresse IP. Pour un identifiant inconnu, la saisie n'est pas gardée : ce peut être un mot de passe.
+    - La déconnexion est tracée (`RecordLogout`).
+    - Mot de passe : une lettre et un chiffre au minimum. Le nouveau doit différer de l'actuel ou du provisoire et ne pas contenir l'identifiant.
+  - **Périmètre** (S3, S11, S12) :
+    - Le journal filtre les acquisitions par périmètre, comme les biens.
+    - Une sortie ne régularise une ligne d'inventaire qu'avec le droit `regularize` sur l'inventaire.
+    - Les listes de responsables (transfert, signalement, fiche du bien) et la validation de `TransferAssets` appliquent `Holder::inPerimeter()`.
+  - **Fichiers** (S13) : la photo d'un bien n'accepte que jpg, png ou webp, et un chemin sous `biens/photos/`. Le modèle refuse tout autre chemin.
+  - **HTTP** (S6) : middleware global `AddSecurityHeaders`. Il pose `X-Frame-Options: SAMEORIGIN`, `Content-Security-Policy: frame-ancestors 'self'`, `nosniff`, `Referrer-Policy: same-origin` et `Permissions-Policy`. Il ne remplace pas la CSP `sandbox` des fichiers servis.
+  - **Journal** (S18) : déclencheurs SQLite et MySQL/MariaDB qui refusent `UPDATE` et `DELETE` sur `activity_log` (migration `protect_activity_log`).
+  - **Installation** (S1, S7, S8, S9, S14, S15) :
+    - Droits NTFS du dossier posés par SID (SYSTEM et Administrateurs en contrôle total, Utilisateurs en lecture). `storage`, `bootstrap\cache` et `.env` sont fermés aux autres comptes.
+    - Règle de pare-feu bornée par `-ReseauAutorise`.
+    - Mot de passe MySQL vide refusé hors `-Demo`, avertissement si le compte est root.
+    - `SESSION_SECURE_COOKIE=true` si l'URL est en https.
+    - `DemoSeeder` refusé en production, et `--force` retiré de `patrimoine:installer`.
+    - Premier administrateur obligé de changer son mot de passe quand il a été passé par stdin.
+  - **Sauvegarde** (S19) : `manifest.sig`, un HMAC-SHA256 de `manifest.json` signé avec `APP_KEY`, est vérifié à la restauration. L'option `--sans-signature` couvre les anciennes sauvegardes ou un autre poste.
+  - **Dépendances** : `symfony/mime` mis à jour (CVE-2026-45070). `composer audit` et `npm audit` ne trouvent plus rien.
+- **Décisions** (et pourquoi) :
+  - Le blocage reste par compte (RG-85) et non par poste. Un poste du réseau peut donc encore bloquer un compte 15 minutes : risque accepté, voir QL13-1.
+  - La CSP reste limitée à `frame-ancestors` : Filament et Livewire utilisent des scripts en ligne, et une CSP complète les casserait.
+  - Le middleware de changement de mot de passe laisse passer les requêtes Livewire. Filtrer par composant serait fragile, et l'utilisateur garde ses droits ordinaires : voir QL13-4.
+- **Écarts par rapport aux docs** :
+  - RG-85 est complétée : lettre obligatoire, et nouveau mot de passe différent de l'actuel.
+  - QL12-2 : le premier administrateur créé par stdin doit maintenant changer son mot de passe.
+- **Questions ajoutées** : QL13-1 à QL13-5.
+- **À tester à la main** :
+  - `install.ps1` sur un vrai poste : droits NTFS (`icacls C:\patrimoine`), règle de pare-feu, refus du mot de passe MySQL vide.
+  - Accès depuis un deuxième poste du réseau, puis depuis un poste hors de la plage autorisée.
+  - Sauvegarde puis restauration sur le même poste. Restauration sur un autre poste avec l'`APP_KEY` d'origine.
+
 ## Lot 12 · Écran Paramètres (E41) · 29/10/2026
 
 Écran oublié par les lots précédents : jusqu'ici, les délais d'alerte, le format du numéro, l'identité de l'Église et la taille des documents ne se changeaient que dans la table `settings`, et la durée d'inactivité que dans `SESSION_LIFETIME` du fichier `.env`. Tout se règle maintenant à l'écran, sans toucher à la base ni à `.env` (plus aucun réglage par `tinker` ou SQL).

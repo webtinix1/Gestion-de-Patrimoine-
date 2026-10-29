@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\DefaultRoles;
 use Database\Factories\UserFactory;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Models\Contracts\HasName;
@@ -82,6 +83,12 @@ class User extends Authenticatable implements FilamentUser, HasName
     public function fullName(): string
     {
         return trim($this->first_name.' '.$this->last_name);
+    }
+
+    // Rôle Administrateur sur un compte actif : seul habilité à gérer les comptes administrateurs, les rôles et les paramètres.
+    public function isAdministrator(): bool
+    {
+        return $this->is_active && $this->hasRole(DefaultRoles::ADMIN);
     }
 
     // RG-85 : blocage temporaire après 5 échecs.

@@ -240,6 +240,35 @@ it('refuse sans exception brute un manifeste mal formé ou aux chemins dangereux
     'lecteur' => [['files' => [['path' => 'C:/Windows/win.ini', 'size' => 1, 'sha256' => 'x']]]],
 ]);
 
+it('signe le manifeste avec APP_KEY et refuse la restauration si la signature manque ou ne correspond pas', function () {
+    $dir = sauvegarder($this);
+    $service = app(BackupService::class);
+
+    expect(file_get_contents($dir.'/manifest.sig'))->toBe(hash_hmac('sha256', file_get_contents($dir.'/manifest.json'), config('app.key')))
+        ->and($service->verifySignature($dir))->toBeTrue();
+
+    ecrireSqlite($this->dbFile, 'etat-actuel');
+    Artisan::call('down');
+    $restaurer = fn (array $options = []) => $this->artisan('patrimoine:restaurer', ['source' => $dir, '--base' => 'patrimoine.sqlite'] + $options);
+
+    // Autre APP_KEY (restauration sur un autre poste).
+    config(['app.key' => 'base64:'.base64_encode(random_bytes(32))]);
+    $restaurer()->expectsOutputToContain('Signature du manifeste absente ou invalide')->assertFailed();
+    expect(lireSqlite($this->dbFile))->toBe('etat-actuel');
+
+    // Signature absente (ancienne sauvegarde).
+    unlink($dir.'/manifest.sig');
+    $restaurer()->expectsOutputToContain('Signature du manifeste absente ou invalide')->assertFailed();
+    expect(lireSqlite($this->dbFile))->toBe('etat-actuel');
+
+    $this->travel(2)->seconds();
+    $restaurer(['--sans-signature' => true])
+        ->expectsOutputToContain('PAS vérifiée')
+        ->expectsOutputToContain('Restauration terminée')
+        ->assertSuccessful();
+    expect(lireSqlite($this->dbFile))->toBe('v1');
+});
+
 it('trouve les outils MySQL dans le dossier indiqué', function () {
     $bin = $this->work.'/outils';
     mkdir($bin);

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Users\Pages;
 
+use App\Actions\Users\SetUserActive;
 use App\Actions\Users\SyncUserAccess;
 use App\Filament\Resources\Users\UserActions;
 use App\Filament\Resources\Users\UserResource;
@@ -9,6 +10,7 @@ use App\Models\User;
 use Filament\Resources\Pages\EditRecord;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 
 class EditUser extends EditRecord
 {
@@ -46,16 +48,20 @@ class EditUser extends EditRecord
     protected function handleRecordUpdate(Model $record, array $data): Model
     {
         /** @var User $record */
-        $attributes = Arr::except($data, ['role', 'sites', 'departments']);
+        $attributes = Arr::except($data, ['role', 'sites', 'departments', 'is_active']);
 
-        if ($record->is(auth()->user())) {
-            unset($attributes['is_active']);
-        }
+        return DB::transaction(function () use ($record, $data, $attributes): User {
+            $record->update($attributes);
 
-        $record->update($attributes);
+            app(SyncUserAccess::class)($record, $data['role'], $data['sites'] ?? [], $data['departments'] ?? []);
 
-        app(SyncUserAccess::class)($record, $data['role'], $data['sites'] ?? [], $data['departments'] ?? []);
+            // Activation par l'action dédiée (dernier administrateur, fermeture des sessions) ; jamais sur son propre compte.
+            if (isset($data['is_active']) && ! $record->is(auth()->user()) && (bool) $data['is_active'] !== $record->is_active) {
+                app(SetUserActive::class)($record, (bool) $data['is_active']);
+            }
 
-        return $record;
+            return $record;
+        });
+
     }
 }

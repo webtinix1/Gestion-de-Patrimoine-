@@ -18,15 +18,12 @@ class Login extends BaseLogin
     {
         $username = $this->data['username'] ?? null;
 
-        // RG-85 : un compte bloqué après 5 échecs refuse toute tentative pendant 15 minutes.
+        // RG-85 : un compte bloqué après 5 échecs refuse toute tentative pendant 15 minutes. Même message
+        // qu'un échec ordinaire : la réponse ne révèle ni l'existence du compte ni son blocage.
         $user = is_string($username) ? User::query()->where('username', $username)->first() : null;
 
         if ($user?->isLocked()) {
-            throw ValidationException::withMessages([
-                'data.username' => __('Compte bloqué après plusieurs essais infructueux, jusqu\'à :time. Réessayez plus tard ou contactez l\'administrateur.', [
-                    'time' => $user->locked_until?->format('H:i'),
-                ]),
-            ]);
+            $this->throwFailureValidationException();
         }
 
         return parent::authenticate();

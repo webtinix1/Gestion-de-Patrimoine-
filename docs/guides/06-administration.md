@@ -19,7 +19,7 @@ Menu **Administration > Utilisateurs**. La liste affiche le nom, l'identifiant, 
 2. Section « Compte » : prénom, nom, **identifiant**, e-mail (facultatif), téléphone, fonction. L'identifiant utilise des lettres sans accent, des chiffres, des points et des tirets, et il est passé en minuscules (exemple : `a.okemba`). Il doit être unique.
 3. Section « Rôle et périmètre » : choisissez le **rôle**, puis, si besoin, les **sites accessibles** et les **départements accessibles** (voir la section 3.3).
 4. Enregistrez. L'application génère un **mot de passe provisoire** et l'affiche **une seule fois** dans une notification : « Mot de passe : … — à communiquer en main propre. Il ne sera plus affiché. » Notez-le et remettez-le à la personne.
-5. À sa première connexion, la personne doit choisir son propre mot de passe (8 caractères minimum, dont un chiffre) avant d'aller plus loin.
+5. À sa première connexion, la personne doit choisir son propre mot de passe (8 caractères minimum, dont une lettre et un chiffre, sans l'identifiant) avant d'aller plus loin.
 
 ### 2.2 Réinitialiser un mot de passe ou débloquer un compte
 

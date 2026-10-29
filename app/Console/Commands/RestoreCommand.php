@@ -12,7 +12,7 @@ use Illuminate\Console\Command;
  * Restaure une sauvegarde de `patrimoine:sauvegarder`. Écrase la base et les fichiers privés :
  * confirmation explicite obligatoire, refus en production sans --force, état courant mis de côté.
  */
-#[Signature('patrimoine:restaurer {source : Dossier de la sauvegarde (patrimoine-AAAAMMJJ-HHMMSS)} {--base= : Nom de la base à écraser, pour confirmer sans interaction} {--force : Autorise la restauration en production} {--bin= : Dossier des outils MySQL ou MariaDB}')]
+#[Signature('patrimoine:restaurer {source : Dossier de la sauvegarde (patrimoine-AAAAMMJJ-HHMMSS)} {--base= : Nom de la base à écraser, pour confirmer sans interaction} {--force : Autorise la restauration en production} {--sans-signature : Accepte une sauvegarde sans signature valide (ancienne, ou APP_KEY différente)} {--bin= : Dossier des outils MySQL ou MariaDB}')]
 #[Description('Restaure la base et les fichiers privés depuis une sauvegarde (écrase les données actuelles)')]
 class RestoreCommand extends Command
 {
@@ -36,8 +36,14 @@ class RestoreCommand extends Command
             return self::FAILURE;
         }
 
+        $requireSignature = ! $this->option('sans-signature');
+
+        if (! $requireSignature) {
+            $this->warn('--sans-signature : l\'authenticité du manifeste n\'est PAS vérifiée. N\'utilisez cette option que pour une sauvegarde dont vous maîtrisez la provenance.');
+        }
+
         try {
-            $manifest = $restore->inspect((string) $this->argument('source'));
+            $manifest = $restore->inspect((string) $this->argument('source'), $requireSignature);
             $target = $restore->targetName();
 
             $this->warn("Cette opération REMPLACE la base « {$target} » et les fichiers privés par la sauvegarde du ".$manifest['created_at'].'.');
@@ -61,7 +67,7 @@ class RestoreCommand extends Command
                 return self::FAILURE;
             }
 
-            $result = $restore->restore((string) $this->argument('source'), $this->option('bin') ?: null);
+            $result = $restore->restore((string) $this->argument('source'), $this->option('bin') ?: null, $requireSignature);
         } catch (BackupException $e) {
             $this->error($e->getMessage());
 

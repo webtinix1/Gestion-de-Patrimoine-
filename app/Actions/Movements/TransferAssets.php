@@ -140,7 +140,7 @@ class TransferAssets
             'department_id' => Department::query()->withoutGlobalScopes()->find($target['department_id']),
             'service_id' => $service,
             'room_id' => $room,
-            'holder_id' => $target['holder_id'] === null ? null : Holder::query()->find($target['holder_id']),
+            'holder_id' => $target['holder_id'] === null ? null : Holder::query()->inPerimeter()->find($target['holder_id']),
         ];
 
         foreach ($checks as $element => $model) {

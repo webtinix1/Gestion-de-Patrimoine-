@@ -161,7 +161,7 @@ final class TransferAction
                 Select::make('holder_id')
                     ->label('Responsable')
                     ->placeholder('Aucun')
-                    ->options(fn (): array => Holder::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id')->all())
+                    ->options(fn (): array => Holder::query()->inPerimeter()->where('is_active', true)->orderBy('name')->pluck('name', 'id')->all())
                     ->searchable()
                     ->live()
                     ->columnSpanFull()

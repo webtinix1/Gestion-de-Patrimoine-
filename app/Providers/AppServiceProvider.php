@@ -24,8 +24,8 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        // RG-85 : 8 caractères minimum, dont un chiffre.
-        Password::defaults(fn () => Password::min(self::PASSWORD_MINIMUM)->numbers());
+        // RG-85 : 8 caractères minimum, dont une lettre et un chiffre.
+        Password::defaults(fn () => Password::min(self::PASSWORD_MINIMUM)->letters()->numbers());
 
         // Dates affichées en jj/mm/aaaa.
         Table::configureUsing(fn (Table $table) => $table

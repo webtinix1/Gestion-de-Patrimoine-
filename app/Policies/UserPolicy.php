@@ -5,6 +5,7 @@ namespace App\Policies;
 use App\Enums\PermissionAbility;
 use App\Enums\PermissionModule;
 use App\Models\User;
+use App\Support\DefaultRoles;
 
 /**
  * RG-84 : un compte se désactive, il ne se supprime jamais.
@@ -28,7 +29,7 @@ class UserPolicy
 
     public function update(User $user, User $model): bool
     {
-        return $this->allows($user, PermissionAbility::Update);
+        return $this->allows($user, PermissionAbility::Update) && $this->mayManage($user, $model);
     }
 
     /**
@@ -36,12 +37,12 @@ class UserPolicy
      */
     public function deactivate(User $user, User $model): bool
     {
-        return $this->allows($user, PermissionAbility::Update) && ! $user->is($model);
+        return $this->allows($user, PermissionAbility::Update) && ! $user->is($model) && $this->mayManage($user, $model);
     }
 
     public function resetPassword(User $user, User $model): bool
     {
-        return $this->allows($user, PermissionAbility::Update);
+        return $this->allows($user, PermissionAbility::Update) && $this->mayManage($user, $model);
     }
 
     public function delete(User $user, User $model): bool
@@ -62,6 +63,15 @@ class UserPolicy
     public function forceDelete(User $user, User $model): bool
     {
         return false;
+    }
+
+    /**
+     * Un compte administrateur n'est modifié, réinitialisé ou désactivé que par un administrateur : sans
+     * cela, déléguer la gestion des comptes reviendrait à donner le rôle Administrateur.
+     */
+    private function mayManage(User $user, User $model): bool
+    {
+        return ! $model->hasRole(DefaultRoles::ADMIN) || $user->isAdministrator();
     }
 
     private function allows(User $user, PermissionAbility $ability): bool

@@ -370,6 +370,16 @@ class RecordDisposal
             return;
         }
 
+        // Régulariser l'inventaire demande son propre droit, en plus de celui d'enregistrer la sortie.
+        $user = auth()->user();
+        $inventory = $line->getAttribute('inventory');
+
+        if ($user instanceof User && ! ($inventory instanceof Model && $user->can('regularize', $inventory))) {
+            Log::warning('Sortie '.$disposal->reference.' : pas de droit de régularisation sur l\'inventaire de la ligne '.$inventoryLineId.', régularisation ignorée.');
+
+            return;
+        }
+
         $instance = app()->make($resolver);
 
         if (is_callable($instance)) {

@@ -15,7 +15,7 @@ Après 30 minutes sans activité, vous êtes déconnecté. Après 5 mots de pass
 ## 2. Changer son mot de passe
 
 1. Cliquez sur votre nom en haut à droite, puis **Mon profil**.
-2. Section « Changer le mot de passe » : mot de passe actuel, nouveau mot de passe (8 caractères minimum, dont un chiffre), confirmation.
+2. Section « Changer le mot de passe » : mot de passe actuel, nouveau mot de passe (8 caractères minimum, dont une lettre et un chiffre, sans l'identifiant), confirmation.
 3. Enregistrez.
 
 ## 3. Ce que vous voyez et ce que vous pouvez faire

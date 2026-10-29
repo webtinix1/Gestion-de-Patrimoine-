@@ -8,6 +8,7 @@ use App\Filament\Resources\Assets\AssetResource;
 use App\Models\Asset;
 use App\Models\AssetCategory;
 use App\Models\AssetCondition;
+use App\Models\Holder;
 use App\Services\AssetNumberGenerator;
 use App\Services\DepreciabilityResolver;
 use App\Services\SerialNumberGuard;
@@ -64,8 +65,10 @@ class AssetForm
                                 FileUpload::make('photo_path')
                                     ->hiddenLabel()
                                     ->image()
+                                    // Photos seulement : un SVG peut porter du script.
+                                    ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp'])
                                     ->disk('local')
-                                    ->directory('biens/photos')
+                                    ->directory(Asset::PHOTO_DIRECTORY)
                                     ->visibility('private')
                                     ->maxSize(5120)
                                     ->helperText('Facultative. Image de 5 Mo au plus.'),
@@ -176,7 +179,7 @@ class AssetForm
                 Select::make('holder_id')
                     ->label('Responsable / affectataire')
                     ->placeholder('Aucun')
-                    ->relationship('holder', 'name', fn (Builder $query) => $query->where('is_active', true)->orderBy('name'))
+                    ->relationship('holder', 'name', fn (Builder $query) => $query->whereIn('holders.id', Holder::query()->inPerimeter()->select('holders.id'))->where('is_active', true)->orderBy('name'))
                     ->searchable()
                     ->preload()
                     ->createOptionForm([

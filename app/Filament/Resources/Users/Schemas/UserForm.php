@@ -57,18 +57,28 @@ class UserForm
                     ->columnSpanFull()
                     ->schema([
                         Select::make('role')
+                            // On ne modifie pas son propre rôle ni son propre périmètre (revérifié par SyncUserAccess).
+                            ->disabled(fn ($record): bool => $record !== null && $record->is(auth()->user()))
+                            ->dehydrated()
                             ->label('Rôle')
-                            ->options(fn (): array => Role::query()->orderBy('id')->pluck('name', 'name')->all())
+                            ->options(fn (): array => Role::query()
+                                // Seul un administrateur attribue le rôle Administrateur (revérifié par SyncUserAccess).
+                                ->when(! auth()->user()?->isAdministrator(), fn ($query) => $query->where('name', '!=', DefaultRoles::ADMIN))
+                                ->orderBy('id')->pluck('name', 'name')->all())
                             ->default(DefaultRoles::MANAGER)
                             ->required()
                             ->columnSpanFull(),
                         Select::make('sites')
+                            ->disabled(fn ($record): bool => $record !== null && $record->is(auth()->user()))
+                            ->dehydrated()
                             ->label('Sites accessibles')
                             ->placeholder('Tous les sites')
                             ->options(fn (): array => Site::query()->active()->orderBy('name')->pluck('name', 'id')->all())
                             ->multiple()
                             ->rule(Fields::onlyActive(Site::class, 'Un site inactif ne peut pas être choisi.')),
                         Select::make('departments')
+                            ->disabled(fn ($record): bool => $record !== null && $record->is(auth()->user()))
+                            ->dehydrated()
                             ->label('Départements accessibles')
                             ->placeholder('Tous les départements')
                             ->options(fn (): array => Department::query()->active()->orderBy('name')->pluck('name', 'id')->all())

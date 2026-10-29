@@ -39,7 +39,7 @@ it('refuse un mot de passe incorrect avec un message en français', function () 
     livewire(Login::class)
         ->fillForm(['username' => 'jmoukala', 'password' => 'mauvais1'])
         ->call('authenticate')
-        ->assertHasFormErrors(['username' => 'Identifiant ou mot de passe incorrect.']);
+        ->assertHasFormErrors(['username' => __('auth.failed')]);
 
     $this->assertGuest();
 });
