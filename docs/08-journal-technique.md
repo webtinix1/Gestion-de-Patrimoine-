@@ -27,6 +27,34 @@ Compatibilité vérifiée sur Packagist le 27/10/2026 : Laravel 13 exige PHP ^8.
 
 **Composer sur ce poste** : `composer require` et `composer dump-autoload` se figent pendant les scripts lancés après la génération de l'autoloader (aucune activité processeur). Contournement : `composer dump-autoload -n --no-scripts`, puis `php artisan package:discover` et `php artisan filament:upgrade`. Toujours rediriger l'entrée standard (`</dev/null`).
 
+## Lot 14 · Tests sur MySQL et intégration continue · 29/10/2026
+
+- **Fait** :
+  - **Tests sur MySQL par défaut** (`phpunit.xml`), comme en production :
+    - base jetable `patrimoine_test` ;
+    - identifiants lus dans le `.env` ou l'environnement ;
+    - SQLite reste possible avec `DB_CONNECTION=sqlite DB_DATABASE=:memory:`.
+  - **Tests de concurrence** : ils tournent maintenant sur MySQL (`patrimoine_concurrence`) au lieu d'être ignorés. Leurs paramètres passent par `concurrencyDb()` (`tests/Pest.php`).
+  - **Garde-fou** : `tests/TestCase.php` refuse toute base dont le nom ne finit pas par `_test`.
+  - **Poste de développement** :
+    - le MySQL 9.1 de WAMP sert de base de développement (`patrimoine`, démonstration chargée) ;
+    - un compte dédié `patrimoine`, sans privilège SUPER, se connecte comme en production ;
+    - `log_bin_trust_function_creators=1` est posé par `SET PERSIST`.
+  - **CI GitHub** (`.github/workflows/tests.yml`) :
+    - la suite tourne sur MySQL 9.1 et sur MariaDB 11.4, avec un compte non-root ;
+    - Pint et PHPStan sont lancés à chaque PR et sur main.
+- **Bugs trouvés grâce à MySQL** (invisibles sur SQLite et MariaDB) :
+  - **Création des biens et des références impossible sur MySQL 8 et 9.** Les générateurs de séquence (numéro patrimonial, acquisitions, sorties, inventaires, opérations) écrivaient `DB::raw('last_value + 1')`. Or `LAST_VALUE` est un mot réservé de MySQL 8+. Ils utilisent maintenant `increment('last_value')`, qui met le nom de colonne entre guillemets.
+  - **Installation bloquée par le lot 13.** Avec le journal binaire actif (le défaut de MySQL 8+), un compte sans privilège SUPER ne peut pas créer de déclencheur. La migration du verrou du journal échouait donc avec le compte dédié recommandé par docs/07.
+    - Elle passe maintenant par `App\Services\System\ActivityLogProtection`.
+    - En cas de refus faute de privilège, elle continue avec un avertissement.
+    - `patrimoine:verifier` affiche la ligne « Journal verrouillé en base », et l'option `--reparer` pose les déclencheurs une fois `log_bin_trust_function_creators=1` réglé (docs/07).
+- **Décisions** (et pourquoi) :
+  - On garde MySQL pour les tests malgré la lenteur : la production tourne sur MySQL, et les deux bugs ci-dessus seraient passés inaperçus jusque chez le client.
+  - `log_bin_trust_function_creators` est déprécié dans MySQL 9 mais fonctionne. Son remplaçant futur est à surveiller lors d'une montée de version.
+- **Questions ajoutées** : aucune.
+- **À tester à la main** : la première exécution de la CI sur GitHub (services MySQL et MariaDB, compilation des assets).
+
 ## Lot 13 · Durcissement de sécurité · 30/10/2026
 
 Correctifs de l'audit du 29/10/2026 (`docs/11-audit-securite.md`, constats S1 à S19).

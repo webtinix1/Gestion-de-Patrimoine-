@@ -21,7 +21,7 @@ beforeEach(function () {
 it('liste les extensions de composer.json et celles du pilote de base', function () {
     $extensions = app(EnvironmentCheck::class)->requiredExtensions();
 
-    expect($extensions)->toContain('gd', 'iconv', 'intl', 'zip', 'mbstring', 'bcmath', 'pdo_sqlite')
+    expect($extensions)->toContain('gd', 'iconv', 'intl', 'zip', 'mbstring', 'bcmath', config('database.default') === 'sqlite' ? 'pdo_sqlite' : 'pdo_mysql')
         ->and(app(EnvironmentCheck::class)->php()['status'])->toBe('ok');
 });
 

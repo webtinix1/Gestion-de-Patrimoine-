@@ -12,6 +12,8 @@ use App\Models\Asset;
 use App\Models\Role;
 use App\Models\Site;
 use App\Models\User;
+use App\Services\System\ActivityLogProtection;
+use App\Services\System\EnvironmentCheck;
 use App\Support\DefaultRoles;
 use Filament\Facades\Filament;
 use Illuminate\Database\QueryException;
@@ -219,4 +221,41 @@ it('pose les en-têtes de sécurité sur les pages (S6)', function () {
     foreach (AddSecurityHeaders::HEADERS as $name => $value) {
         $response->assertHeader($name, $value);
     }
+});
+
+it('signale un journal non verrouillé en base et le répare (S18, lot 14)', function () {
+    // Doublure : poser ou retirer de vrais déclencheurs validerait la transaction du test sous MySQL.
+    $protection = new class extends ActivityLogProtection
+    {
+        public bool $installed = false;
+
+        public bool $allowed = false;
+
+        public function isInstalled(): bool
+        {
+            return $this->installed;
+        }
+
+        public function install(): bool
+        {
+            return $this->installed = $this->allowed;
+        }
+    };
+    app()->instance(ActivityLogProtection::class, $protection);
+    $check = app(EnvironmentCheck::class);
+
+    // Refus de MySQL faute de privilège : avertissement avec la marche à suivre.
+    expect($check->activityLogProtection(repair: true))
+        ->status->toBe('warn')
+        ->detail->toContain('log_bin_trust_function_creators');
+
+    $protection->allowed = true;
+
+    expect($check->activityLogProtection()['status'])->toBe('warn')
+        ->and($check->activityLogProtection(repair: true)['status'])->toBe('ok')
+        ->and($protection->installed)->toBeTrue();
+});
+
+it('pose réellement les déclencheurs du journal sur la base de test (S18, lot 14)', function () {
+    expect(app(ActivityLogProtection::class)->isInstalled())->toBeTrue();
 });

@@ -79,7 +79,7 @@ class AssetNumberGenerator
     {
         return DB::table('asset_number_sequences')
             ->where('scope', $scope)
-            ->update(['last_value' => DB::raw('last_value + 1'), 'updated_at' => now()]);
+            ->increment('last_value', 1, ['updated_at' => now()]);
     }
 
     /**

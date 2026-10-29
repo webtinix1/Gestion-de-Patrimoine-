@@ -77,6 +77,13 @@ class InstallCommand extends Command
         $this->components->info('3/5 Tables (migrations)');
         $this->call('migrate', ['--force' => true]);
 
+        // RG-70 : déclencheurs du journal refusés par MySQL faute de privilège : on prévient sans bloquer.
+        $protection = $check->activityLogProtection();
+
+        if ($protection['status'] !== 'ok') {
+            $this->warn('Journal verrouillé en base : '.$protection['detail']);
+        }
+
         $this->components->info('4/5 Référentiels de base');
         $this->call('db:seed', ['--class' => ReferenceSeeder::class, '--force' => true]);
 

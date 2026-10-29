@@ -3,6 +3,7 @@
 namespace App\Services\System;
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Throwable;
 
 /**
@@ -29,10 +30,39 @@ class EnvironmentCheck
         $results = [$this->php(), ...$this->extensions(), ...$this->directories($repair), ...$this->limits(), $this->key(), $this->front()];
 
         if ($withDatabase) {
-            $results[] = $this->database();
+            $results[] = $database = $this->database();
+
+            if ($database['status'] === 'ok') {
+                $results[] = $this->activityLogProtection($repair);
+            }
         }
 
         return $results;
+    }
+
+    /**
+     * RG-70 : déclencheurs qui verrouillent le journal dans la base ; reposés avec --reparer.
+     *
+     * @return array{label: string, status: 'ok'|'warn'|'fail', detail: string}
+     */
+    public function activityLogProtection(bool $repair = false): array
+    {
+        $label = 'Journal verrouillé en base';
+        $protection = app(ActivityLogProtection::class);
+
+        try {
+            if (! Schema::hasTable('activity_log')) {
+                return ['label' => $label, 'status' => 'warn', 'detail' => 'tables absentes : lancez php artisan migrate'];
+            }
+
+            if ($protection->isInstalled() || ($repair && $protection->install())) {
+                return ['label' => $label, 'status' => 'ok', 'detail' => 'modification et suppression refusées par la base'];
+            }
+        } catch (Throwable $e) {
+            return ['label' => $label, 'status' => 'warn', 'detail' => 'contrôle impossible : '.$this->firstLine($e->getMessage())];
+        }
+
+        return ['label' => $label, 'status' => 'warn', 'detail' => 'protection absente (le journal reste protégé par l\'application). '.ActivityLogProtection::ADVICE];
     }
 
     /**
