@@ -17,7 +17,7 @@ Les comptes de démonstration (`admin`, `a.okemba`, `m.loubaki`, `e.mbemba`…) 
 ## 2. Changer son mot de passe
 
 1. Cliquez sur votre nom en haut à droite, puis sur **Mon profil**.
-2. Dans la section « Changer le mot de passe », saisissez le mot de passe actuel, le nouveau (8 caractères minimum, dont un chiffre) et sa confirmation.
+2. Dans la section « Changer le mot de passe », saisissez le mot de passe actuel, le nouveau (8 caractères minimum, dont une lettre et un chiffre, sans l'identifiant) et sa confirmation.
 3. Enregistrez.
 
 La même page vous montre votre rôle, votre périmètre (les sites et départements que vous voyez) et vos dernières opérations.

@@ -20,6 +20,7 @@ use App\Models\User;
 use App\Services\Inventories\InventoryReferenceGenerator;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -65,7 +66,9 @@ class InventoriesDemoSeeder extends Seeder
         ], $okemba);
         app(StartInventory::class)($inventory, $okemba);
         $this->dropLaterAcquisitions($inventory, '2026-09-30');
-        $firstActivity = (int) DB::table('activity_log')->max('id');
+        // Le journal ne se modifie plus après coup (lot 13) : ses écritures suivent le calendrier de la maquette
+        // dès leur création, saisies et clôture le 30/09, régularisations le 03/10.
+        Date::setTestNow('2026-09-30 17:00:00');
 
         $record = app(RecordInventoryEntry::class);
         $lines = $this->pendingLines($inventory);
@@ -109,7 +112,7 @@ class InventoriesDemoSeeder extends Seeder
         app(CloseInventory::class)($inventory, $okemba, 'Inventaire réalisé avec les responsables de départements. Manquants transmis à l\'administration pour décision.', true);
 
         // Régularisations depuis le rapport : un transfert, une mise à jour d'état, un bien retrouvé.
-        $closureActivity = (int) DB::table('activity_log')->max('id');
+        Date::setTestNow('2026-10-03 09:00:00');
         $closureMovement = (int) DB::table('movements')->max('id');
         $regularize = app(RegularizeInventoryLine::class);
         $moved = InventoryLine::query()->withoutGlobalScopes()->findOrFail($elsewhere->first()?->id);
@@ -125,16 +128,15 @@ class InventoriesDemoSeeder extends Seeder
         $regularize->updateCondition($damagedLine, $okemba, (int) Asset::query()->withoutGlobalScopes()->whereKey($damagedLine->asset_id)->value('lock_version'));
         $regularize->markFound(InventoryLine::query()->withoutGlobalScopes()->findOrFail($missing->last()?->id), $okemba, 'Retrouvé le 03/10 au magasin central.');
 
+        Date::setTestNow();
+
         // Dates de la maquette (22/09 au 30/09), sans passer par les modèles (inventaire clôturé, figé).
         DB::table('inventories')->where('id', $inventory->id)->update([
             'started_at' => '2026-09-22 08:30:00', 'submitted_at' => '2026-09-30 16:00:00', 'closed_at' => '2026-09-30 17:00:00',
         ]);
         DB::table('inventory_lines')->where('inventory_id', $inventory->id)->whereNotNull('checked_at')->update(['checked_at' => '2026-09-25 10:00:00']);
 
-        // Les écritures du journal et les régularisations suivent le calendrier : saisies pendant l'inventaire,
-        // clôture le 30/09, régularisations le 03/10 (jamais à la date du chargement de la démonstration).
-        DB::table('activity_log')->where('id', '>', $firstActivity)->where('id', '<=', $closureActivity)->update(['created_at' => '2026-09-30 17:00:00']);
-        DB::table('activity_log')->where('id', '>', $closureActivity)->update(['created_at' => '2026-10-03 09:00:00']);
+        // Les régularisations suivent le calendrier (jamais à la date du chargement de la démonstration).
         DB::table('movements')->where('id', '>', $closureMovement)->update(['created_at' => '2026-10-03 09:00:00']);
         DB::table('inventory_lines')->where('inventory_id', $inventory->id)->whereNotNull('resolved_at')->update(['resolved_at' => '2026-10-03 09:00:00']);
     }

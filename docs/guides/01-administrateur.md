@@ -17,7 +17,7 @@ Le mot de passe des comptes de démonstration est dans `database/seeders/DemoSee
 ## 2. Changer son mot de passe
 
 1. Cliquez sur votre nom en haut à droite, puis **Mon profil**.
-2. Section « Changer le mot de passe » : mot de passe actuel, nouveau (8 caractères minimum, dont un chiffre), confirmation.
+2. Section « Changer le mot de passe » : mot de passe actuel, nouveau (8 caractères minimum, dont une lettre et un chiffre, sans l'identifiant), confirmation.
 3. Enregistrez.
 
 Le premier administrateur choisit à l'installation un mot de passe d'au moins 12 caractères, avec lettres et chiffres. Choisissez-en un long, que vous seul connaissez.

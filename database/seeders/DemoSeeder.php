@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\User;
 use App\Support\DefaultRoles;
 use Illuminate\Database\Seeder;
+use RuntimeException;
 
 /**
  * Données de démonstration pour les tests et la recette. Jamais chargées en production.
@@ -18,6 +19,10 @@ class DemoSeeder extends Seeder
 
     public function run(): void
     {
+        if (app()->isProduction()) {
+            throw new RuntimeException('La démonstration crée des comptes dont le mot de passe est connu : refusée quand APP_ENV vaut production.');
+        }
+
         $admin = User::query()->updateOrCreate(
             ['username' => self::ADMIN_USERNAME],
             [

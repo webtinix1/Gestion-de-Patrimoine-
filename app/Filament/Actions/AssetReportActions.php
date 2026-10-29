@@ -214,7 +214,7 @@ final class AssetReportActions
                 Select::make('department_id')->label('Département')->options(fn (): array => Department::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id')->all())->native(false)->required(),
                 Select::make('service_id')->label('Service')->placeholder('Aucun')->options(fn (Get $get): array => Service::query()->where('is_active', true)->where('department_id', $get('department_id'))->orderBy('name')->pluck('name', 'id')->all())->native(false),
                 Select::make('room_id')->label('Local')->placeholder('Aucun')->options(fn (Get $get): array => Room::query()->where('is_active', true)->where('site_id', $get('site_id'))->orderBy('name')->pluck('name', 'id')->all())->native(false),
-                Select::make('holder_id')->label('Responsable')->placeholder('Aucun')->options(fn (): array => Holder::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id')->all())->searchable()->native(false),
+                Select::make('holder_id')->label('Responsable')->placeholder('Aucun')->options(fn (): array => Holder::query()->inPerimeter()->where('is_active', true)->orderBy('name')->pluck('name', 'id')->all())->searchable()->native(false),
                 DatePicker::make('moved_on')->label('Date du transfert')->maxDate(today())->required(),
                 TextInput::make('reason')->label('Motif')->maxLength(255)->columnSpanFull(),
             ])

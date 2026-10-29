@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Support\Carbon;
+use Illuminate\Validation\ValidationException;
 use LogicException;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
@@ -71,6 +72,8 @@ class Asset extends Model
     /** @use HasFactory<AssetFactory> */
     use HasFactory, HasPerimeter, LogsActivity, RecordsAuthors;
 
+    public const string PHOTO_DIRECTORY = 'biens/photos';
+
     protected $attributes = ['residual_value' => 0, 'is_depreciable' => false, 'depreciation_forced_off' => false];
 
     protected static function booted(): void
@@ -89,6 +92,14 @@ class Asset extends Model
 
             // RG-86 : toute modification, quelle que soit l'opération, change la version de la fiche.
             $asset->setAttribute('lock_version', (int) $asset->getOriginal('lock_version') + 1);
+        });
+
+        // La photo est un fichier téléversé dans son dossier : un chemin forgé vers un autre fichier privé
+        // (un document, par exemple) serait sinon servi avec la fiche du bien.
+        static::saving(function (Asset $asset): void {
+            if ($asset->isDirty('photo_path') && $asset->photo_path !== null && ! self::isPhotoPath($asset->photo_path)) {
+                throw ValidationException::withMessages(['data.photo_path' => 'Photo invalide : téléversez une image.']);
+            }
         });
 
         // RG-50 : un bien quitte le patrimoine par une sortie, il n'est jamais supprimé.
@@ -119,6 +130,11 @@ class Asset extends Model
     public function perimeterColumns(): array
     {
         return ['site' => 'site_id', 'department' => 'department_id'];
+    }
+
+    public static function isPhotoPath(string $path): bool
+    {
+        return str_starts_with($path, self::PHOTO_DIRECTORY.'/') && ! str_contains($path, '..') && ! str_contains($path, '\\');
     }
 
     public function isDisposed(): bool

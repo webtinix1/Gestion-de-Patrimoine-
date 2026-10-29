@@ -6,7 +6,6 @@ use App\Enums\PermissionAbility;
 use App\Enums\PermissionModule;
 use App\Models\Setting;
 use App\Models\User;
-use App\Support\DefaultRoles;
 
 /**
  * E41, RG-80 : l'écran Paramètres est réservé à l'administrateur. Règle appliquée en dur (rôle
@@ -17,12 +16,12 @@ class SettingPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $this->isAdministrator($user) && $user->can(PermissionModule::Settings->permission(PermissionAbility::View));
+        return $user->isAdministrator() && $user->can(PermissionModule::Settings->permission(PermissionAbility::View));
     }
 
     public function update(User $user): bool
     {
-        return $this->isAdministrator($user) && $user->can(PermissionModule::Settings->permission(PermissionAbility::Update));
+        return $user->isAdministrator() && $user->can(PermissionModule::Settings->permission(PermissionAbility::Update));
     }
 
     public function create(User $user): bool
@@ -38,10 +37,5 @@ class SettingPolicy
     public function deleteAny(User $user): bool
     {
         return false;
-    }
-
-    private function isAdministrator(User $user): bool
-    {
-        return $user->is_active && $user->hasRole(DefaultRoles::ADMIN);
     }
 }

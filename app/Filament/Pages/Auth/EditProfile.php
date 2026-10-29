@@ -6,12 +6,15 @@ use App\Models\Activity;
 use App\Models\Department;
 use App\Models\Site;
 use App\Models\User;
+use Closure;
 use Filament\Auth\Pages\EditProfile as BaseEditProfile;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Callout;
+use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Text;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\HtmlString;
 use Illuminate\Validation\ValidationException;
 use SensitiveParameter;
@@ -40,7 +43,7 @@ class EditProfile extends BaseEditProfile
             ->inlineLabel(false)
             ->components([
                 Callout::make('Mot de passe provisoire')
-                    ->description('Choisissez votre propre mot de passe avant de continuer : 8 caractères minimum, dont un chiffre.')
+                    ->description('Choisissez votre propre mot de passe avant de continuer : 8 caractères minimum, dont une lettre et un chiffre, différent de l\'actuel et sans votre identifiant.')
                     ->warning()
                     ->visible($user->must_change_password),
                 Section::make('Informations personnelles')
@@ -53,7 +56,7 @@ class EditProfile extends BaseEditProfile
                         TextInput::make('job_title')->label('Fonction')->maxLength(255)->columnSpanFull(),
                     ]),
                 Section::make('Changer le mot de passe')
-                    ->description('8 caractères minimum, dont un chiffre.')
+                    ->description('8 caractères minimum, dont une lettre et un chiffre, différent de l\'actuel et sans votre identifiant.')
                     ->schema([
                         $this->getCurrentPasswordFormComponent(),
                         $this->getPasswordFormComponent(),
@@ -93,6 +96,35 @@ class EditProfile extends BaseEditProfile
         }
 
         return $data;
+    }
+
+    /**
+     * RG-85 : le nouveau mot de passe remplace vraiment l'ancien (ou le provisoire) et ne reprend pas
+     * l'identifiant. Règle de validation du champ : la valeur est déjà hachée dans mutateFormDataBeforeSave.
+     */
+    protected function getPasswordFormComponent(): Component
+    {
+        $component = parent::getPasswordFormComponent();
+
+        if ($component instanceof TextInput) {
+            $component->rule(fn (): Closure => function (string $attribute, mixed $value, Closure $fail): void {
+                $user = $this->currentUser();
+
+                if (! is_string($value) || $value === '') {
+                    return;
+                }
+
+                if (Hash::check($value, $user->password)) {
+                    $fail('Le nouveau mot de passe doit être différent de l\'actuel.');
+                }
+
+                if (str_contains(mb_strtolower($value), mb_strtolower($user->username))) {
+                    $fail('Le mot de passe ne doit pas contenir votre identifiant.');
+                }
+            });
+        }
+
+        return $component;
     }
 
     protected function getRedirectUrl(): ?string

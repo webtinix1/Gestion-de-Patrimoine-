@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\AddSecurityHeaders;
 use App\Http\Middleware\ApplySessionLifetime;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -16,6 +17,8 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         // RG-85, E41 : durée d'inactivité lue dans les paramètres, avant le démarrage de la session.
         $middleware->web(prepend: [ApplySessionLifetime::class]);
+        // En-têtes de sécurité sur toutes les réponses, panneau Filament et requêtes Livewire compris.
+        $middleware->append(AddSecurityHeaders::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

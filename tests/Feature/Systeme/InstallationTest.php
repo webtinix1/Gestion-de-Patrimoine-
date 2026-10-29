@@ -10,6 +10,7 @@ use Database\Seeders\DemoSeeder;
 use Database\Seeders\RolesSeeder;
 use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Role;
+use Symfony\Component\Console\Exception\InvalidOptionException;
 
 const QUESTION_MOT_DE_PASSE = 'Mot de passe (12 caractères minimum, lettres et chiffres ; non affiché)';
 
@@ -127,12 +128,28 @@ it('charge la démonstration sur option, sans demander de mot de passe', functio
     expect(User::query()->where('username', DemoSeeder::ADMIN_USERNAME)->exists())->toBeTrue();
 });
 
-it('refuse la démonstration en production sans --force', function () {
+it('refuse la démonstration en production', function () {
     $this->app['env'] = 'production';
 
     $this->artisan('patrimoine:installer', ['--demo' => true])
         ->expectsOutputToContain('refusée quand APP_ENV vaut production')
         ->assertFailed();
+
+    expect(User::query()->count())->toBe(0);
+});
+
+it('ne connaît plus l\'option --force', function () {
+    $this->app['env'] = 'production';
+
+    expect(fn () => $this->artisan('patrimoine:installer', ['--demo' => true, '--force' => true])->run())->toThrow(InvalidOptionException::class);
+
+    expect(User::query()->count())->toBe(0);
+});
+
+it('le DemoSeeder lui-même refuse de tourner en production', function () {
+    $this->app['env'] = 'production';
+
+    expect(fn () => app(DemoSeeder::class)->run())->toThrow(RuntimeException::class, 'production');
 
     expect(User::query()->count())->toBe(0);
 });
@@ -184,7 +201,8 @@ it('lit le mot de passe sur l\'entrée standard avec --mot-de-passe-stdin, sans 
     }
 
     $admin = User::query()->where('username', 'admin.stdin')->firstOrFail();
-    expect(Hash::check('Secret-Stdin-2026', $admin->password))->toBeTrue();
+    expect(Hash::check('Secret-Stdin-2026', $admin->password))->toBeTrue()
+        ->and($admin->must_change_password)->toBeTrue();
 });
 
 it('refuse un mot de passe faible lu sur l\'entrée standard', function () {

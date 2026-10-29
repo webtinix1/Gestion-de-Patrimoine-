@@ -26,7 +26,6 @@ use Throwable;
  */
 #[Signature('patrimoine:installer
     {--demo : Charge aussi la démonstration (comptes à mot de passe connu : jamais sur un serveur réel)}
-    {--force : Autorise --demo quand APP_ENV vaut production}
     {--identifiant= : Identifiant du premier administrateur}
     {--prenom= : Prénom du premier administrateur}
     {--nom= : Nom du premier administrateur}
@@ -53,8 +52,8 @@ class InstallCommand extends Command
 
         $demo = (bool) $this->option('demo');
 
-        if ($demo && $this->laravel->isProduction() && ! $this->option('force')) {
-            $this->error('La démonstration crée des comptes dont le mot de passe est connu : refusée quand APP_ENV vaut production (ajoutez --force si vous êtes sûr).');
+        if ($demo && $this->laravel->isProduction()) {
+            $this->error('La démonstration crée des comptes dont le mot de passe est connu : refusée quand APP_ENV vaut production (aucune option ne l\'autorise).');
 
             return self::FAILURE;
         }
@@ -246,7 +245,8 @@ class InstallCommand extends Command
             'username' => $username,
             'job_title' => 'Administrateur de l\'application',
             'password' => $password,
-            'must_change_password' => false,
+            // Mot de passe transmis par un script (stdin) : connu de l'installateur, à changer à la première connexion.
+            'must_change_password' => $stdin,
             'is_active' => true,
         ]);
         $user->assignRole(DefaultRoles::ADMIN);

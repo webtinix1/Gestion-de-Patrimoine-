@@ -29,11 +29,12 @@ class RestoreService
     }
 
     /**
-     * Vérifie la sauvegarde (intégrité, fichiers en trop, type de base) sans rien modifier.
+     * Vérifie la sauvegarde (intégrité, fichiers en trop, type de base, signature du manifeste) sans rien modifier.
+     * $requireSignature = false : anciennes sauvegardes ou autre APP_KEY (option --sans-signature).
      *
      * @return array<string, mixed>
      */
-    public function inspect(string $source): array
+    public function inspect(string $source, bool $requireSignature = true): array
     {
         $dir = realpath($source);
 
@@ -45,6 +46,10 @@ class RestoreService
 
         if ($errors !== []) {
             throw new BackupException('La sauvegarde est corrompue ou incomplète, rien n\'a été modifié : '.implode(' ; ', array_slice($errors, 0, 5)));
+        }
+
+        if ($requireSignature && ! $this->backups->verifySignature($dir)) {
+            throw new BackupException('Signature du manifeste absente ou invalide (sauvegarde modifiée, plus ancienne, ou APP_KEY différente de celle du poste d\'origine). Rien n\'a été modifié. Reprenez l\'APP_KEY d\'origine, ou, si vous faites confiance à ce dossier, ajoutez --sans-signature.');
         }
 
         $manifest = $this->backups->manifest($dir);
@@ -60,9 +65,9 @@ class RestoreService
     /**
      * @return array{safety: string, previous_files: string|null}
      */
-    public function restore(string $source, ?string $binDir = null): array
+    public function restore(string $source, ?string $binDir = null, bool $requireSignature = true): array
     {
-        $manifest = $this->inspect($source);
+        $manifest = $this->inspect($source, $requireSignature);
         $dir = (string) $manifest['path'];
 
         // Filet de sécurité : l'état courant est sauvegardé avant toute écriture. S'il échoue, on s'arrête.

@@ -19,11 +19,18 @@
       2. le mot de passe du premier administrateur (seulement si aucun administrateur n'existe encore).
     Les caractères accentués d'un mot de passe peuvent être altérés par le tube de Windows PowerShell 5.1 : les éviter.
 
+    Sécurité (hors -Demo) : un mot de passe MySQL vide est refusé ; le compte root déclenche un avertissement (créer un
+    utilisateur dédié, voir docs-deploiement-local.md). Quand la tâche planifiée est installée, les droits NTFS du dossier
+    sont durcis (SYSTEM et Administrateurs : contrôle total ; Utilisateurs : lecture ; storage, bootstrap\cache et .env réservés
+    à SYSTEM, aux Administrateurs et au compte -CompteApache). Une règle de pare-feu entrante (profil Privé) limitée à
+    -ReseauAutorise est créée. Une URL en https écrit SESSION_SECURE_COOKIE=true.
+
 .EXAMPLE
     .\install.ps1
     .\install.ps1 -Url http://patrimoine.local -DbNom patrimoine -DbUtilisateur patrimoine
     .\install.ps1 -Demo -Base sqlite        # essai rapide, sans MySQL
     .\install.ps1 -SansTachePlanifiee       # n'enregistre pas la tâche Windows schedule:run (installée d'office, sauf avec -Demo)
+    .\install.ps1 -ReseauAutorise 192.168.1.0/24 -CompteApache 'NT AUTHORITY\LOCAL SERVICE'
 #>
 [CmdletBinding()]
 param(
@@ -40,6 +47,13 @@ param(
     [switch]$TachePlanifiee,
     [switch]$SansTachePlanifiee,
     [switch]$MotDePasseStdin,
+    # Réseau autorisé par la règle de pare-feu (LocalSubnet, ou une plage comme 192.168.1.0/24).
+    [string]$ReseauAutorise = 'LocalSubnet',
+    # Compte qui fait tourner Apache (le service WAMP tourne en SYSTEM par défaut) : Modifier sur storage et bootstrap\cache.
+    [string]$CompteApache = 'SYSTEM',
+    [switch]$PareFeu,
+    [switch]$SansPareFeu,
+    [switch]$SansDurcissement,
     [string]$Identifiant,
     [string]$Prenom,
     [string]$Nom
@@ -159,6 +173,7 @@ if (Test-Path -LiteralPath '.env') {
     Set-EnvValue '.env' 'APP_DEBUG' 'false'
     Set-EnvValue '.env' 'APP_URL' (Quote-EnvValue $Url)
     Set-EnvValue '.env' 'LOG_LEVEL' 'warning'
+    if ($Url -match '^https://') { Set-EnvValue '.env' 'SESSION_SECURE_COOKIE' 'true' }
     if ($Base -eq 'sqlite') {
         Set-EnvValue '.env' 'DB_CONNECTION' 'sqlite'
         Set-EnvValue '.env' 'DB_DATABASE' (Quote-EnvValue (Join-Path $PSScriptRoot 'database\database.sqlite'))
@@ -168,12 +183,20 @@ if (Test-Path -LiteralPath '.env') {
         Set-EnvValue '.env' 'DB_PORT' "$DbPort"
         Set-EnvValue '.env' 'DB_DATABASE' $DbNom
         Set-EnvValue '.env' 'DB_USERNAME' (Quote-EnvValue $DbUtilisateur)
+        if (-not $Demo -and $DbUtilisateur -eq 'root') {
+            Write-Warning "Le compte MySQL 'root' est déconseillé en service réel : créez un utilisateur dédié limité à la base (docs-deploiement-local.md), puis relancez avec -DbUtilisateur."
+        }
         if ([Console]::IsInputRedirected) {
             $plain = Read-StdinLine
         } else {
-            $secure = Read-Host "Mot de passe MySQL de l'utilisateur '$DbUtilisateur' (vide si aucun ; non affiché)" -AsSecureString
+            $secure = Read-Host "Mot de passe MySQL de l'utilisateur '$DbUtilisateur' (non affiché ; vide refusé hors -Demo)" -AsSecureString
             $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
             try { $plain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr) } finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
+        }
+        if (-not $Demo -and [string]::IsNullOrEmpty($plain)) {
+            # Le .env partiel est retiré pour qu'une relance reparte de zéro.
+            Remove-Item -LiteralPath '.env' -Force
+            Fail "Un mot de passe MySQL vide est refusé hors -Demo. Définissez un mot de passe sur le compte '$DbUtilisateur' (voir docs-deploiement-local.md), puis relancez."
         }
         Set-EnvValue '.env' 'DB_PASSWORD' (Quote-EnvValue $plain)
         $plain = $null
@@ -242,6 +265,51 @@ if ($installerTache) {
         # Demandée explicitement : échec ; installée d'office : avertissement, l'application reste installée.
         if ($TachePlanifiee) { Fail $message }
         Write-Warning $message
+    }
+}
+
+# 7. Droits NTFS ----------------------------------------------------------------------------------------
+# La tâche planifiée tourne en SYSTEM sur ce dossier : sans ACL, tout compte pouvant y écrire obtiendrait SYSTEM.
+# SID au lieu des noms : indépendant de la langue de Windows.
+if ($tacheEnregistree -and -not $SansDurcissement) {
+    Step 'Droits du dossier d''installation'
+    $racine = $PSScriptRoot
+    $commandes = @(
+        @($racine, '/grant:r', '*S-1-5-18:(OI)(CI)F', '*S-1-5-32-544:(OI)(CI)F', '*S-1-5-32-545:(OI)(CI)RX'),
+        @($racine, '/inheritance:r')
+    )
+    # Données sensibles et zones d'écriture : fermées aux autres comptes (le compte Apache y écrit, ou y lit pour .env).
+    $zones = @(@('storage', 'M'), @('bootstrap\cache', 'M'), @('.env', 'R'))
+    foreach ($zone in $zones) {
+        $chemin = Join-Path $racine $zone[0]
+        if (-not (Test-Path -LiteralPath $chemin)) { continue }
+        $droits = @($chemin, '/inheritance:r', '/grant:r', '*S-1-5-18:(OI)(CI)F', '*S-1-5-32-544:(OI)(CI)F')
+        if ($CompteApache -notin @('SYSTEM', 'LocalSystem', 'NT AUTHORITY\SYSTEM')) { $droits += "${CompteApache}:(OI)(CI)$($zone[1])" }
+        $commandes += , $droits
+    }
+    $echec = $null
+    foreach ($commande in $commandes) {
+        & icacls @commande | Out-Null
+        if ($LASTEXITCODE -ne 0) { $echec = "icacls $($commande -join ' ')"; break }
+    }
+    if ($echec) {
+        Write-Warning "Durcissement des droits NTFS impossible (relancez en administrateur) : lancez à la main les commandes icacls décrites dans docs\07-deploiement-local.md (échec sur : $echec)."
+    } else {
+        Write-Host "Droits NTFS appliqués (SYSTEM et Administrateurs : contrôle total ; Utilisateurs : lecture ; storage, bootstrap\cache et .env fermés ; compte Apache : $CompteApache)."
+    }
+}
+
+# 8. Pare-feu -------------------------------------------------------------------------------------------
+# Règle entrante TCP, profil Privé, limitée à -ReseauAutorise ; recréée à chaque passage (idempotent).
+if (-not $SansPareFeu -and ($PareFeu -or -not $Demo)) {
+    Step 'Pare-feu Windows'
+    $port = ([uri]$Url).Port
+    try {
+        Get-NetFirewallRule -DisplayName 'Patrimoine - HTTP' -ErrorAction SilentlyContinue | Remove-NetFirewallRule
+        New-NetFirewallRule -DisplayName 'Patrimoine - HTTP' -Direction Inbound -Protocol TCP -LocalPort $port -Action Allow -Profile Private -RemoteAddress $ReseauAutorise | Out-Null
+        Write-Host "Règle « Patrimoine - HTTP » : TCP $port en entrée, profil Privé, depuis $ReseauAutorise."
+    } catch {
+        Write-Warning "Règle de pare-feu non créée ($($_.Exception.Message)). En administrateur : New-NetFirewallRule -DisplayName 'Patrimoine - HTTP' -Direction Inbound -Protocol TCP -LocalPort $port -Action Allow -Profile Private -RemoteAddress $ReseauAutorise"
     }
 }
 
