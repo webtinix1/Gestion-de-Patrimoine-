@@ -31,3 +31,5 @@ Thumbs.db
 /public/js/filament
 /public/fonts/filament
 /storage/app/guides
+/docker/.env
+/docker/sauvegardes

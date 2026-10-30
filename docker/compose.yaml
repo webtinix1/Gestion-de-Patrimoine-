@@ -1,0 +1,118 @@
+# Patrimoine sous Docker : application (Nginx + PHP-FPM), planificateur et MariaDB 11.4.
+# Mode d'emploi : docs/07-deploiement-local.md, section « Option C : Docker ».
+#   cp docker/.env.example docker/.env   (puis compléter)
+#   docker compose -f docker/compose.yaml up -d --build
+name: patrimoine
+
+x-app-environment: &app-environment
+  APP_NAME: Patrimoine
+  APP_ENV: production
+  APP_DEBUG: "false"
+  APP_KEY: ${APP_KEY:-}
+  APP_URL: ${APP_URL:-http://localhost:8080}
+  APP_TIMEZONE: Africa/Brazzaville
+  APP_LOCALE: fr
+  APP_FALLBACK_LOCALE: fr
+  LOG_CHANNEL: stack
+  LOG_STACK: single,stderr
+  LOG_LEVEL: warning
+  DB_CONNECTION: mariadb
+  DB_HOST: db
+  DB_PORT: "3306"
+  DB_DATABASE: ${DB_DATABASE:-patrimoine}
+  DB_USERNAME: ${DB_USERNAME:-patrimoine}
+  DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD manquant dans docker/.env}
+  SESSION_DRIVER: database
+  SESSION_SECURE_COOKIE: ${SESSION_SECURE_COOKIE:-false}
+  CACHE_STORE: database
+  QUEUE_CONNECTION: sync
+  FILESYSTEM_DISK: local
+  MAIL_MAILER: log
+
+services:
+  # Autorité interne et certificat TLS du service db, créés au premier lancement puis conservés.
+  certificats:
+    image: patrimoine:latest
+    command: certificats
+    pull_policy: never
+    volumes:
+      - certificats:/certs
+    restart: "no"
+
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: patrimoine:latest
+    command: app
+    environment: *app-environment
+    ports:
+      - "${APP_PORT:-8080}:80"
+    volumes:
+      - fichiers:/var/www/html/storage/app
+      - journaux:/var/www/html/storage/logs
+      - certificats:/certs:ro
+      - ${BACKUP_DIR:-./sauvegardes}:/sauvegardes
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  scheduler:
+    image: patrimoine:latest
+    command: scheduler
+    pull_policy: never
+    environment: *app-environment
+    # Pas de serveur web dans ce conteneur : le contrôle HTTP de l'image ne s'applique pas.
+    healthcheck:
+      disable: true
+    volumes:
+      - fichiers:/var/www/html/storage/app
+      - journaux:/var/www/html/storage/logs
+      - certificats:/certs:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      app:
+        condition: service_started
+    restart: unless-stopped
+
+  db:
+    # MariaDB 11.4 LTS : moteur accepté en production (docs/07) et testé par la CI ; son client est celui
+    # de l'image de l'application (mysqldump, mysql pour les sauvegardes).
+    image: mariadb:11.4
+    # Pas de journal binaire (un seul serveur, pas de réplication) : le compte de l'application peut
+    # alors poser les déclencheurs qui verrouillent le journal des opérations (RG-70).
+    command:
+      - --skip-log-bin
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      # Connexions chiffrées avec le certificat de l'autorité interne (vérifié par les outils de sauvegarde).
+      - --ssl-ca=/certs/ca.pem
+      - --ssl-cert=/certs/server-cert.pem
+      - --ssl-key=/certs/server-key.pem
+    environment:
+      MARIADB_DATABASE: ${DB_DATABASE:-patrimoine}
+      MARIADB_USER: ${DB_USERNAME:-patrimoine}
+      MARIADB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD manquant dans docker/.env}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?DB_ROOT_PASSWORD manquant dans docker/.env}
+      TZ: Africa/Brazzaville
+    volumes:
+      - base:/var/lib/mysql
+      - certificats:/certs:ro
+    depends_on:
+      certificats:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  base:
+  certificats:
+  fichiers:
+  journaux:

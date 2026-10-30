@@ -1,0 +1,5 @@
+# Outils mysqldump et mysql (client MariaDB) utilisés par patrimoine:sauvegarder et patrimoine:restaurer.
+# Connexion chiffrée au service db, certificat vérifié avec l'autorité interne créée par le service
+# « certificats » (docker/compose.yaml).
+[client-mariadb]
+ssl-ca = /certs/ca.pem
