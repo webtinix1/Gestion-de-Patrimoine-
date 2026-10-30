@@ -164,6 +164,76 @@ En HTTP, les mots de passe et les cookies de session circulent en clair sur le r
 
 Si l'Église reste en HTTP, ce risque est **accepté** : le réseau doit rester privé (pare-feu borné à `-ReseauAutorise`, Wi-Fi protégé, pas d'invité sur le même réseau), et `SESSION_SECURE_COOKIE` doit rester absent ou à `false` (à `true` en HTTP, la connexion est impossible).
 
+## Option C : Docker
+
+Une seule image contient l'application (Nginx et PHP 8.4-FPM, interface déjà compilée). `docker/compose.yaml` lance trois conteneurs :
+
+- `app` : l'application, publiée sur le port `APP_PORT` (8080 par défaut).
+- `scheduler` : le planificateur (`schedule:work`), qui remplace la tâche planifiée Windows.
+- `db` : MariaDB 11.4 LTS, l'un des deux moteurs acceptés, également testé par la CI. Les connexions à la base sont chiffrées en TLS avec un certificat d'une autorité interne, créé au premier lancement par le service `certificats`. Les outils de sauvegarde vérifient ce certificat.
+
+Les données vivent dans des volumes Docker : `base` (MySQL), `fichiers` (photos et documents, `storage/app`) et `journaux`. L'image ne contient aucun secret. Elle convient à un serveur Linux ou à un poste Windows avec Docker Desktop.
+
+**Installation**
+
+1. Copier `docker/.env.example` en `docker/.env`, puis remplir :
+   - `DB_PASSWORD` et `DB_ROOT_PASSWORD` : deux mots de passe différents ;
+   - `APP_URL` : l'adresse que les postes ouvriront ;
+   - `APP_KEY` : générée par la commande ci-dessous, puis copiée dans le fichier.
+   ```
+   docker compose -f docker/compose.yaml build
+   docker compose -f docker/compose.yaml run --rm --no-deps app php artisan key:generate --show
+   ```
+   **Conserver `docker/.env` en lieu sûr** : il contient la clé qui signe les sauvegardes (QL13-3).
+2. Démarrer :
+   ```
+   docker compose -f docker/compose.yaml up -d
+   ```
+   Au démarrage, le conteneur `app` :
+   - attend la base ;
+   - passe les migrations et met les caches à jour ;
+   - pose le verrou du journal. Le journal binaire étant désactivé dans `db`, aucun réglage MySQL n'est nécessaire.
+3. Créer le premier administrateur et les référentiels de base. Le mot de passe est demandé sans être affiché :
+   ```
+   docker compose -f docker/compose.yaml exec -u www-data app php artisan patrimoine:installer
+   ```
+   Pour un poste d'essai, ajouter `--demo` pour la démonstration. Les comptes qu'elle crée ont un mot de passe connu.
+4. Vérifier :
+   ```
+   docker compose -f docker/compose.yaml exec -u www-data app php artisan patrimoine:verifier
+   ```
+
+**Sans Internet chez le client** : construire l'image sur un poste connecté et l'exporter avec MySQL :
+```
+docker save patrimoine:latest mariadb:11.4 -o patrimoine-images.tar
+```
+Sur le serveur, après avoir copié le dossier du projet (au minimum `docker/`) :
+```
+docker load -i patrimoine-images.tar
+```
+Lancer ensuite `up -d` **sans** `--build`.
+
+**Exploitation**
+
+- **Sauvegarde** : le dossier `BACKUP_DIR` du serveur est monté sur `/sauvegardes` dans le conteneur. Lancer :
+  ```
+  docker compose -f docker/compose.yaml exec -u www-data app php artisan patrimoine:sauvegarder /sauvegardes
+  ```
+  Le client MariaDB inclus fournit `mysqldump`.
+- **Restauration** :
+  1. `exec -u www-data app php artisan down`
+  2. `exec -u www-data app php artisan patrimoine:restaurer /sauvegardes/patrimoine-AAAAMMJJ-HHMMSS --force`
+  3. `exec -u www-data app php artisan optimize:clear`, puis `exec -u www-data app php artisan optimize`
+  4. `exec -u www-data app php artisan up`
+
+  Ces commandes se lancent depuis PowerShell, ou depuis un terminal Linux. Sous Git Bash, préfixer avec `MSYS_NO_PATHCONV=1` : sinon `/sauvegardes` est converti en chemin Windows.
+
+  La signature est vérifiée avec l'`APP_KEY` de `docker/.env`.
+- **Mise à jour** : remplacer le code (ou charger la nouvelle image), puis lancer `docker compose -f docker/compose.yaml up -d --build`. Les migrations passent au démarrage, et les volumes conservent la base et les fichiers.
+- **Journaux** : `docker compose -f docker/compose.yaml logs -f app`.
+- **HTTPS** : mettre un proxy inverse devant le port publié (Caddy, Traefik ou Nginx, avec un certificat interne), puis passer `APP_URL` en `https://…` et `SESSION_SECURE_COOKIE=true`.
+- **Pare-feu** : n'ouvrir que `APP_PORT`, limité au réseau local. La base n'est jamais publiée hors de Docker.
+
 ## Postes utilisateurs
 
 Un navigateur récent (Chrome, Edge ou Firefox), l'adresse en favori. Douchette USB en mode clavier avec suffixe Entrée. Impression des étiquettes depuis le PDF généré, à l'échelle 100 %, sans marges ajoutées par le navigateur.

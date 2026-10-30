@@ -27,6 +27,39 @@ Compatibilité vérifiée sur Packagist le 27/10/2026 : Laravel 13 exige PHP ^8.
 
 **Composer sur ce poste** : `composer require` et `composer dump-autoload` se figent pendant les scripts lancés après la génération de l'autoloader (aucune activité processeur). Contournement : `composer dump-autoload -n --no-scripts`, puis `php artisan package:discover` et `php artisan filament:upgrade`. Toujours rediriger l'entrée standard (`</dev/null`).
 
+## Lot 15 · Docker · 30/10/2026
+
+- **Fait** :
+  - **`Dockerfile` multi-étapes** :
+    - dépendances Composer sans les outils de développement ;
+    - compilation Vite (le thème Filament importe des fichiers de `vendor`) ;
+    - image finale `php:8.4-fpm-alpine` avec Nginx, supervisord, les extensions de docs/07, OPcache sans vérification des dates, et le client MariaDB pour les sauvegardes. Elle pèse 531 Mo.
+    - L'image ne contient aucun secret (`.dockerignore` exclut `.env`, la base, les fichiers déposés et les tests).
+  - **`docker/compose.yaml`** :
+    - `certificats` : autorité interne et certificat TLS du serveur `db`, créés une fois. La clé de l'autorité est supprimée après signature.
+    - `app` : migrations, caches, `patrimoine:verifier --reparer`, puis Nginx et PHP-FPM. Port `APP_PORT`.
+    - `scheduler` : `schedule:work`, sans contrôle HTTP.
+    - `db` : MariaDB 11.4, sans journal binaire, en TLS.
+    - Volumes `base`, `fichiers`, `journaux` et `certificats`. Les sauvegardes vont dans le dossier `BACKUP_DIR` du serveur.
+    - Configuration dans `docker/.env` (modèle `docker/.env.example`), jamais versionné.
+  - **`docker/entrypoint.sh`** : attente de la base, refus clair si `APP_KEY` manque, et `artisan` lancé en `www-data` (`su-exec`).
+  - **Documentation** : docs/07, « Option C : Docker » (installation, hors ligne avec `docker save`/`docker load`, sauvegarde, restauration, mise à jour, HTTPS par proxy inverse).
+- **Vérifié sur ce poste** (Docker Desktop 29.7) :
+  - construction de l'image et premier démarrage ;
+  - `patrimoine:verifier` conforme, journal verrouillé en base ;
+  - `patrimoine:installer` par stdin ;
+  - connexion dans le navigateur, avec le changement de mot de passe exigé ;
+  - en-têtes de sécurité présents et version Nginx masquée ;
+  - `patrimoine:sauvegarder` signée, puis `patrimoine:restaurer`, et verrou du journal toujours en place après la restauration.
+- **Décisions** (et pourquoi) :
+  - **MariaDB plutôt que MySQL dans le conteneur `db`.** Le client MariaDB d'Alpine, qui fournit `mysqldump` et `mysql` pour les sauvegardes, ne sait pas s'authentifier auprès de MySQL 8.4 : il lui manque le plugin `caching_sha2_password`. MariaDB est accepté en production (docs/07) et testé par la CI.
+  - **TLS vérifié entre l'application et la base**, plutôt que désactiver la vérification du certificat : le client MariaDB vérifie le certificat par défaut, et le certificat auto-signé de la base était refusé.
+  - **Un seul conteneur Nginx et PHP-FPM**, piloté par supervisord : déploiement simple sur le poste de l'Église.
+- **À tester à la main** :
+  - L'installation sur le vrai serveur (Linux, ou Windows avec Docker Desktop).
+  - L'accès depuis un deuxième poste.
+  - L'import hors ligne (`docker load`).
+
 ## Lot 14 · Tests sur MySQL et intégration continue · 29/10/2026
 
 - **Fait** :

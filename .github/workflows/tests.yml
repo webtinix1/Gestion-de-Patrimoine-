@@ -98,3 +98,18 @@ jobs:
       - run: composer install --no-interaction --no-progress --prefer-dist
       - run: php vendor/bin/pint --test
       - run: php vendor/bin/phpstan analyse --memory-limit=2G --no-progress
+
+  docker:
+    name: Image Docker
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Construction de l'image (docs/07, option C)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: patrimoine:ci

@@ -1,0 +1,30 @@
+# Rien de local ni de secret dans l'image : ni .env, ni base, ni fichiers déposés, ni dépendances
+# (reconstruites dans le Dockerfile).
+.git
+.github
+.claude
+.idea
+.vscode
+node_modules
+vendor
+public/build
+public/hot
+public/storage
+.env
+.env.*
+!.env.example
+database/*.sqlite
+storage/app/private/*
+storage/app/public/*
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+storage/framework/testing/*
+storage/logs/*
+bootstrap/cache/*.php
+tests
+docker/.env
+docker/sauvegardes
+*.log
+Dockerfile
+.dockerignore
